@@ -122,14 +122,6 @@ def accuracy(dista, distb):
     return (pred > 0).sum()*1.0/dista.size()[0]
 
 
-
-
-
-
-
-
-
-
 def main():
     #args.cuda = not args.no_cuda and torch.cuda.is_available()
     #torch.manual_seed(args.seed)

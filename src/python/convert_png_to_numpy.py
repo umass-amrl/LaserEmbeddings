@@ -118,3 +118,20 @@ def CurateTrainTest():
   test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
 
   return train_loader, test_loader
+
+def SpecialTestSet():
+  to_tensor = transforms.ToTensor()
+  normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+  transform = transforms.Compose([to_tensor, normalize])
+
+  #TODO: new way to choose subset of data for testing
+  bdsl_test = [["hand_picked", TBD]]
+  laser_dataset_test = LaserDataset('../../laser_images/', bdsl_test, transform=transform)
+
+  test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
+
+  return test_loader
+  
+  
+  
+  
