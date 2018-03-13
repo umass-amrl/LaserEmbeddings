@@ -130,25 +130,7 @@ def accuracy(dista, distb):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def main():
-    #global args, best_acc
-    #args = parser.parse_args()
     #args.cuda = not args.no_cuda and torch.cuda.is_available()
     #torch.manual_seed(args.seed)
     #if args.cuda:
@@ -158,25 +140,31 @@ def main():
 
     train_loader, test_loader = cptn.CurateTrainTest()
     
-    #kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
-
     model = Net()
     tnet = TripletNet(model)
     #if args.cuda:
     #    tnet.cuda()
 
+    start_epoch = 1
+
+    resume = True
+
+    checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
+
+    best_acc = 0.0
+
     # optionally resume from a checkpoint
-    #if args.resume:
-    #    if os.path.isfile(args.resume):
-    #        print("=> loading checkpoint '{}'".format(args.resume))
-    #        checkpoint = torch.load(args.resume)
-    #        args.start_epoch = checkpoint['epoch']
-    #        best_prec1 = checkpoint['best_prec1']
-    #        tnet.load_state_dict(checkpoint['state_dict'])
-    #        print("=> loaded checkpoint '{}' (epoch {})"
-    #                .format(args.resume, checkpoint['epoch']))
-    #    else:
-    #        print("=> no checkpoint found at '{}'".format(args.resume))
+    if resume:
+        if os.path.isfile(checkpoint_to_load):
+            print("=> loading checkpoint '{}'".format(checkpoint_to_load))
+            checkpoint = torch.load(checkpoint_to_load)
+            start_epoch = checkpoint['epoch']
+            best_acc = checkpoint['best_acc']
+            tnet.load_state_dict(checkpoint['state_dict'])
+            print("=> loaded checkpoint '{}' (epoch {})"
+                    .format(checkpoint_to_load, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
 
     #cudnn.benchmark = True
 
@@ -184,24 +172,19 @@ def main():
     margin = 1
     learning_rate = 0.001
     momentum = 0.9
-    epochs = 1
-
+    epochs = 3
 
     criterion = torch.nn.MarginRankingLoss(margin=margin)
-    #optimizer = optim.SGD(tnet.parameters(), lr=args.lr, momentum=args.momentum)
     optimizer = optim.SGD(tnet.parameters(), lr=learning_rate, momentum=momentum)
 
     n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
     print('  + Number of params: {}'.format(n_parameters))
 
-
-    best_acc = 0.0
-    for epoch in range(1, epochs + 1):
+    for epoch in range(start_epoch, epochs + 1):
         # train for one epoch
         train(train_loader, tnet, criterion, optimizer, epoch)
         # evaluate on validation set
         acc = test(test_loader, tnet, criterion, epoch)
-
 
         print('current acc: ')
         print(acc)
@@ -212,21 +195,11 @@ def main():
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
 
-        #save_checkpoint({
-        #    'epoch': epoch + 1,
-        #    'state_dict': tnet.state_dict(),
-        #    'best_prec1': best_acc,
-        #}, is_best)
-
-
-
-
-
-
-
-
-
-
+        save_checkpoint({
+            'epoch': epoch + 1,
+            'state_dict': tnet.state_dict(),
+            'best_acc': best_acc,
+        }, is_best, 'checkpoint'+str(epoch)+'.pth.tar')
 
 
 def train(train_loader, tnet, criterion, optimizer, epoch):
@@ -285,12 +258,6 @@ def train(train_loader, tnet, criterion, optimizer, epoch):
 
 
 
-
-
-
-
-
-
 def test(test_loader, tnet, criterion, epoch):
     losses = AverageMeter()
     accs = AverageMeter()
@@ -323,20 +290,16 @@ def test(test_loader, tnet, criterion, epoch):
     return accs.avg
 
 
-
-
-
-
-
-#def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
-#    #Saves checkpoint to disk
-#    directory = "runs/%s/"%(args.name)
-#    if not os.path.exists(directory):
-#        os.makedirs(directory)
-#    filename = directory + filename
-#    torch.save(state, filename)
-#    if is_best:
-#        shutil.copyfile(filename, 'runs/%s/'%(args.name) + 'model_best.pth.tar')
+def save_checkpoint(state, is_best, filename):
+    # Saves checkpoint to disk
+    directory = 'model_checkpoints/current/'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    filename = directory + filename
+    torch.save(state, filename)
+    torch.save(state, directory + 'most_recent.pth.tar')
+    if is_best:
+        shutil.copyfile(filename, directory + 'model_best.pth.tar')
 
 
 
