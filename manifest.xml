@@ -1,0 +1,26 @@
+<package>
+  <description brief="bag_to_image">
+
+     Support for neural network training on laser scans
+
+  </description>
+  <author>Samer Nashed</author>
+  <license>LGPLv3.0</license>
+  <review status="unreviewed" notes=""/>
+  <url></url>
+  <depend package="std_msgs"/>
+  <depend package="nav_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="rospy"/>
+  <depend package="roscpp"/>
+  <depend package="rosbag"/>
+  <depend package="tf"/>
+  <depend package="rospy"/>
+  <depend package="pcl_conversions"/>
+  <depend package="pcl_ros"/>
+  <depend package="cv_bridge"/>
+
+
+</package>
+
+
