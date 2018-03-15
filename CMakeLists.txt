@@ -107,6 +107,7 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/shared/math)
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/shared/util)
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/src/bag_to_image)
+add_subdirectory(${PROJECT_SOURCE_DIR}/src/gui)
 add_subdirectory(${PROJECT_SOURCE_DIR}/src/perception_tools)
 
 INCLUDE_DIRECTORIES(${GTK2_INCLUDE_DIRS})
@@ -136,6 +137,24 @@ SET(PERCEPTION_SRCS
   src/perception_tools/perception_2d.cpp
 )
 
+SET(GUI_SRCS
+  src/gui/vector_display.cpp
+  src/gui/gltext.cpp
+)
+
+qt4_wrap_cpp(GUI_MOC_SRCS
+  src/gui/vector_display.h
+)
+
+qt4_wrap_cpp(GLWIDGET_MOC_SRCS
+  src/opengl/glwidget.h
+)
+
+qt4_add_resources(RC_SRCS
+  icons/gui_icons.qrc
+  ${SHARED_RC}
+)
+
 #================================================================================
 #Creating libraries to eliminate redundant compile steps
 
@@ -146,3 +165,11 @@ TARGET_LINK_LIBRARIES(shared_libraries shared_libraries ${libs})
 ADD_LIBRARY(perception_library ${PERCEPTION_SRCS})
 ADD_DEPENDENCIES(perception_library shared_libraries)
 TARGET_LINK_LIBRARIES(perception_library shared_libraries ${libs})
+
+ADD_LIBRARY(gui_libraries SHARED ${GUI_SRCS} ${GUI_MOC_SRCS})
+ADD_DEPENDENCIES(gui_libraries shared_libraries ${GUI_MOC_SRCS})
+TARGET_LINK_LIBRARIES(gui_libraries
+    shared_libraries
+    ${libs}
+    ${QT_LIBRARIES})
+#TARGET_LINK_LIBRARIES(gui_libraries ${QT_LIBRARIES})
