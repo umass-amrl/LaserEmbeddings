@@ -155,6 +155,10 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
 }
 
 int main(int argc, char* argv[]) {
+  if (argc < 2) {
+    std::cout << "Need bag name..." << std::endl;
+    return 1;
+  }
   bag_name_ = argv[1];
   getScansFromBag();
 

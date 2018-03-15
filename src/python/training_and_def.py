@@ -41,8 +41,6 @@ from visdom import Visdom
 # loss function parameters
 # 
 
-#TODO: plotter
-
 #TODO: understand training output
 
 #TODO: verify training is improving performance
@@ -263,7 +261,7 @@ def main():
   margin = 1
   learning_rate = 0.001
   momentum = 0.9
-  epochs = 3
+  epochs = 20
 
   criterion = torch.nn.MarginRankingLoss(margin=margin)
   optimizer = optim.SGD(tnet.parameters(), lr=learning_rate, momentum=momentum)
@@ -294,7 +292,7 @@ def main():
 
 
 if __name__ == '__main__':
-  main()    
+  main()
   print ("donzo")
 
 
