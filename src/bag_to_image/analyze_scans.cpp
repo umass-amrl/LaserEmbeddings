@@ -80,10 +80,10 @@ void pubScan() {
   display_publisher_.publish(display_message_);
 }
 
-void saveScan(const string filename) {
-  vector<float> scan = all_scans_[current_view_ - 1];
-  //TODO: save scan to file
-}
+//void saveScan(const string filename) {
+//  vector<float> scan = all_scans_[current_view_ - 1];
+//  todo: save scan?
+//}
 
 void incrementView() {
   if (current_view_ == int(all_scans_.size())) {
@@ -149,9 +149,9 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
     setCurrentView();
     id_in_progress_.clear();
   }
-  else if (msg.keycode == 0x56) { // key code 86, 'v' for save
-    saveScan("ScansOfInterest.txt");
-  }
+//  else if (msg.keycode == 0x56) { // key code 86, 'v' for save
+//    saveScan("ScansOfInterest.txt");
+//  }
 }
 
 int main(int argc, char* argv[]) {

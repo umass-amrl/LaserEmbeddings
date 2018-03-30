@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
+
 # -*- coding: utf-8 -*-
 """
 Created on Tue Mar  6 17:35:43 2018
@@ -41,36 +42,110 @@ from visdom import Visdom
 # loss function parameters
 # 
 
-#TODO: understand training output
-
-#TODO: verify training is improving performance
-
 #TODO: improve training data selection
 
 #TODO: LIST OF EXPERIMENTS
 
 
-class Net(nn.Module):
+#class Net(nn.Module): #NOTE: slightly modded LeNet
+#  def __init__(self):
+#    super(Net, self).__init__()
+#    # 1 input image channel, 8 output channels, 11x11 square convolution kernel
+#    # Conv2d(channels(layers, output channels, kernel size, stride, padding)
+#    # kernel, stride, padding dimensions may be specified explicitly 
+#    self.conv1 = nn.Conv2d(1, 8, 11, 1, 1)
+#    self.conv2 = nn.Conv2d(8, 16, 5, 1, 1)
+#    # an affine operation: y = Wx + b
+#    self.fc1 = nn.Linear(16 * 30 * 30, 256)
+#    self.fc2 = nn.Linear(256, 128)
+#    self.fc3 = nn.Linear(128, 64)
+#
+#  def forward(self, x):
+#    # Max pooling over a (4, 4) window 
+#    x = F.max_pool2d(F.relu(self.conv1(x)), (4, 4))
+#    x = F.max_pool2d(F.relu(self.conv2(x)), (2, 2))
+#    x = x.view(-1, self.num_flat_features(x))
+#    x = F.relu(self.fc1(x))
+#    x = F.relu(self.fc2(x))
+#    x = self.fc3(x)
+#    return x
+#
+#  def num_flat_features(self, x):
+#    size = x.size()[1:]  # all dimensions except the batch dimension
+#    num_features = 1
+#    for s in size:
+#      num_features *= s
+#    return num_features
+
+class Net(nn.Module): #NOTE: 1D conv w/ XXX
   def __init__(self):
     super(Net, self).__init__()
     # 1 input image channel, 8 output channels, 11x11 square convolution kernel
     # Conv2d(channels(layers, output channels, kernel size, stride, padding)
     # kernel, stride, padding dimensions may be specified explicitly 
-    self.conv1 = nn.Conv2d(1, 8, 11, 1, 1)
-    self.conv2 = nn.Conv2d(8, 16, 5, 1, 1)
-    # an affine operation: y = Wx + b
-    self.fc1 = nn.Linear(16 * 30 * 30, 256)
-    self.fc2 = nn.Linear(256, 128)
-    self.fc3 = nn.Linear(128, 64)
+    
+    #non-square kernel 
+    self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, 1)
+    self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, 2)
+    self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, 4)
+    self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, 8)
+    self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, 16)
+    self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, 32)
+    self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, 64)
 
-  def forward(self, x):
+    #NOTE: Arch 1
+    
+    #NOTE: Arch 2
+    
+    #NOTE: Arch 3
+
+    
+    #NOTE: BIG embeddings
+
+    #NOTE: small embeddings
+
+
+    #self.conv2 = nn.Conv2d(8, 16, 5, 1, 1)
+    # an affine operation: y = Wx + b
+    #self.fc1 = nn.Linear(16 * 30 * 30, 256)
+    #self.fc2 = nn.Linear(256, 128)
+    #self.fc3 = nn.Linear(128, 64)
+
+  def forward(self, xn, xr):
+    xn1 = F.relu(self.conv1_1(xn))
+    xr1 = F.relu(self.conv1_1(xr))
+    xn2 = F.relu(self.conv1_2(xn))
+    xr2 = F.relu(self.conv1_2(xr))
+    xn3 = F.relu(self.conv1_3(xn))
+    xr3 = F.relu(self.conv1_3(xr))
+    xn4 = F.relu(self.conv1_4(xn))
+    xr4 = F.relu(self.conv1_4(xr))
+    xn5 = F.relu(self.conv1_5(xn))
+    xr5 = F.relu(self.conv1_5(xr))
+    xn6 = F.relu(self.conv1_6(xn))
+    xr6 = F.relu(self.conv1_6(xr))
+    xn7 = F.relu(self.conv1_7(xn))
+    xr7 = F.relu(self.conv1_7(xr))
+
+
+    
+    #NOTE: Arch 1
+    outputs = [xn1, xr1, xn2, xr2, xn3, xr3, xn4, xr4, xn5, xr5, xn6, xr6, xn7, xr7]
+    x = torch.cat(outputs, 1)
+    
+    #NOTE: Arch 2
+    
+    #NOTE: Arch 3
+    outputs = [xn1, xr1, xn2, xr2, xn3, xr3, xn4, xr4, xn5, xr5, xn6, xr6, xn7, xr7]
+    x = torch.cat(outputs, 1)
+
     # Max pooling over a (4, 4) window 
-    x = F.max_pool2d(F.relu(self.conv1(x)), (4, 4))
-    x = F.max_pool2d(F.relu(self.conv2(x)), (2, 2))
-    x = x.view(-1, self.num_flat_features(x))
-    x = F.relu(self.fc1(x))
-    x = F.relu(self.fc2(x))
-    x = self.fc3(x)
+    #x = F.max_pool2d(F.relu(self.conv1(x)), (4, 4))
+    #x = F.max_pool2d(F.relu(self.conv2(x)), (2, 2))
+    #x = x.view(-1, self.num_flat_features(x))
+    #x = F.relu(self.fc1(x))
+    #x = F.relu(self.fc2(x))
+    #x = self.fc3(x)
     return x
 
   def num_flat_features(self, x):

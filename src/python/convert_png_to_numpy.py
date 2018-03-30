@@ -69,6 +69,19 @@ class LaserDataset(Dataset):
  
     return sample_a, sample_aprime, sample_b
   
+  def getSpecificItem(self, idx):
+    sample = self.PNGtoNPA(self.record[idx])
+    if self.transform:
+      sample = self.transform(sample)
+    sample = sample[0, :, :]
+    sample = sample.unsqueeze(0)
+    sample = sample.unsqueeze(0)
+    return sample
+
+  def getAddress(self, idx):
+    return self.record[idx]
+
+
 def CurateTrainTest():
   to_tensor = transforms.ToTensor()
   normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -89,7 +102,8 @@ def CurateTrainTest():
 #                ["2016-02-16-16-01-46", 9799],
 #                ["2016-02-16-16-17-06", 7251],
 #                ["2016-02-16-21-18-05", 6498],
-#                ["2016-02-16-21-20-53", 9099]]
+#                ["2016-02-16-21-20-53", 9099],
+#                ["2016-08-17-22-05-52", 67149]]
 
   bdsl_train = [["2016-08-17-12-48-06", 403], 
                 ["2016-08-17-12-56-32", 544], 
@@ -123,18 +137,40 @@ def CurateTrainTest():
 
   return train_loader, test_loader
 
+def SpecialQuerySet():
+  to_tensor = transforms.ToTensor()
+  normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+  transform = transforms.Compose([to_tensor, normalize])
+
+  bdsl_query = [["2016-08-17-12-48-06", 403],
+                ["2016-08-17-12-56-32", 544],
+                ["2016-08-17-12-57-16", 835],
+                ["2016-08-17-12-57-54", 672],
+                ["2016-08-17-12-58-32", 1191],
+                ["2016-04-17-20-32-59", 2723],
+                ["2016-04-17-20-34-16", 2332],
+                ["2016-08-17-13-08-32", 2649],
+                ["2016-08-17-13-16-56", 2832],
+                ["2016-02-16-15-46-43", 8971],
+                ["2016-02-16-16-01-46", 9799],
+                ["2016-02-16-16-17-06", 7251],
+                ["2016-02-16-21-18-05", 6498],
+                ["2016-02-16-21-20-53", 9099]]
+
+  laser_dataset_query = LaserDataset('../../laser_images/', bdsl_query, transform=transform)
+
+  return laser_dataset_query
+
 def SpecialTestSet():
   to_tensor = transforms.ToTensor()
   normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
   transform = transforms.Compose([to_tensor, normalize])
 
-  #TODO: new way to choose subset of data for testing
-  bdsl_test = [["hand_picked", TBD]]
+  #bdsl_test = [["hand_picked", 10]]
+  bdsl_test = [["2016-08-17-13-18-08", 3283]]
   laser_dataset_test = LaserDataset('../../laser_images/', bdsl_test, transform=transform)
 
-  test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
-
-  return test_loader
+  return laser_dataset_test
   
   
   

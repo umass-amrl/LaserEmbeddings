@@ -1,0 +1,16 @@
+#!/bin/bash
+
+source_dir=$1  #'bagData/URG-04LX/201X-XX'
+target_dir=$2  #'laser_images/full_normalized/URG-04LX/201X-XX'
+
+for entry in `ls $source_dir`; do
+    base=${entry%.*}
+    new_dir="${target_dir}/${base}"
+    #echo $new_dir
+    mkdir -p $new_dir
+    cd $new_dir
+    #~/synthesis/LaserEmbeddings/bin/BagToImages "../../../../../${source_dir}/${entry}" 270 10
+    ~/synthesis/LaserEmbeddings/bin/BagToImages "../../../../../${source_dir}/${entry}" 240 4
+    cd ../../../../../
+done
+
