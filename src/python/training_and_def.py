@@ -77,14 +77,12 @@ from visdom import Visdom
 #      num_features *= s
 #    return num_features
 
-class Net(nn.Module): #NOTE: 1D conv w/ XXX
+
+class Net1(nn.Module): #NOTE: 1D conv (double inception) w/ LeNet style backend
   def __init__(self):
     super(Net, self).__init__()
-    # 1 input image channel, 8 output channels, 11x11 square convolution kernel
-    # Conv2d(channels(layers, output channels, kernel size, stride, padding)
-    # kernel, stride, padding dimensions may be specified explicitly 
-    
-    #non-square kernel 
+
+    # non-square kernel 
     self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, 1)
     self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, 2)
     self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, 4)
@@ -93,23 +91,16 @@ class Net(nn.Module): #NOTE: 1D conv w/ XXX
     self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, 32)
     self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, 64)
 
-    #NOTE: Arch 1
-    
-    #NOTE: Arch 2
-    
-    #NOTE: Arch 3
+    self.conv2 = nn.Conv2d(14, 8, 11, 1, 1)
+    self.conv3 = nn.Conv2d(8, 16, 5, 1, 1)
+    self.fc1 = nn.Linear(16 * 30 * 30, 256)
+    self.fc2 = nn.Linear(256, 128)
 
-    
     #NOTE: BIG embeddings
+    self.fc3 = nn.Linear(128, 64)
 
     #NOTE: small embeddings
-
-
-    #self.conv2 = nn.Conv2d(8, 16, 5, 1, 1)
-    # an affine operation: y = Wx + b
-    #self.fc1 = nn.Linear(16 * 30 * 30, 256)
-    #self.fc2 = nn.Linear(256, 128)
-    #self.fc3 = nn.Linear(128, 64)
+    #self.fc3 = nn.Linear(128, 32)
 
   def forward(self, xn, xr):
     xn1 = F.relu(self.conv1_1(xn))
@@ -127,25 +118,109 @@ class Net(nn.Module): #NOTE: 1D conv w/ XXX
     xn7 = F.relu(self.conv1_7(xn))
     xr7 = F.relu(self.conv1_7(xr))
 
-
-    
-    #NOTE: Arch 1
-    outputs = [xn1, xr1, xn2, xr2, xn3, xr3, xn4, xr4, xn5, xr5, xn6, xr6, xn7, xr7]
-    x = torch.cat(outputs, 1)
-    
-    #NOTE: Arch 2
-    
-    #NOTE: Arch 3
     outputs = [xn1, xr1, xn2, xr2, xn3, xr3, xn4, xr4, xn5, xr5, xn6, xr6, xn7, xr7]
     x = torch.cat(outputs, 1)
 
-    # Max pooling over a (4, 4) window 
-    #x = F.max_pool2d(F.relu(self.conv1(x)), (4, 4))
-    #x = F.max_pool2d(F.relu(self.conv2(x)), (2, 2))
-    #x = x.view(-1, self.num_flat_features(x))
-    #x = F.relu(self.fc1(x))
-    #x = F.relu(self.fc2(x))
+    x = F.max_pool2d(F.relu(self.conv2(x)), (4, 4))
+    x = F.max_pool2d(F.relu(self.conv3(x)), (2, 2))
+    x = x.view(-1, self.num_flat_features(x))
+    x = F.relu(self.fc1(x))
+    x = F.relu(self.fc2(x))
+
+    #NOTE: BIG embeddings
+    x = self.fc3(x)
+
+    #NOTE: small embeddings
     #x = self.fc3(x)
+
+    return x
+
+  def num_flat_features(self, x):
+    size = x.size()[1:]  # all dimensions except the batch dimension
+    num_features = 1
+    for s in size:
+      num_features *= s
+    return num_features
+
+
+class Net2(nn.Module): #NOTE: 1D conv (inception style) w/ straight to large FC
+  def __init__(self):
+    super(Net, self).__init__()
+
+    # non-square kernel 
+    self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, 1)
+    self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, 2)
+    self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, 4)
+    self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, 8)
+    self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, 16)
+    self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, 32)
+    self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, 64)
+
+    self.fc1 = nn.Linear(7 * 64 * 64, 256)
+    self.fc2 = nn.Linear(256, 128)
+
+    #NOTE: BIG embeddings
+    self.fc3 = nn.Linear(128, 64)
+
+    #NOTE: small embeddings
+    #self.fc3 = nn.Linear(128, 32)
+
+  def forward(self, xn, xr):
+    xr1 = F.relu(self.conv1_1(xr))
+    xr2 = F.relu(self.conv1_2(xr))
+    xr3 = F.relu(self.conv1_3(xr))
+    xr4 = F.relu(self.conv1_4(xr))
+    xr5 = F.relu(self.conv1_5(xr))
+    xr6 = F.relu(self.conv1_6(xr))
+    xr7 = F.relu(self.conv1_7(xr))
+    
+    xr1 = F.max_pool(xr1, (4, 4))
+    xr2 = F.max_pool(xr2, (4, 4))
+    xr3 = F.max_pool(xr3, (4, 4))
+    xr4 = F.max_pool(xr4, (4, 4))
+    xr5 = F.max_pool(xr5, (4, 4))
+    xr6 = F.max_pool(xr6, (4, 4))
+    xr7 = F.max_pool(xr7, (4, 4))
+
+    outputs = [xr1, xr2, xr3, xr4, xr5, xr6, xr7]
+    x = torch.cat(outputs, 1)
+
+    x = x.view(-1, self.num_flat_features(x))
+    x = F.relu(self.fc1(x))
+    x = F.relu(self.fc2(x))
+
+    #NOTE: BIG embeddings
+    x = self.fc3(x)
+
+    #NOTE: small embeddings
+    #x = self.fc3(x)
+
+    return x
+
+  def num_flat_features(self, x):
+    size = x.size()[1:]  # all dimensions except the batch dimension
+    num_features = 1
+    for s in size:
+      num_features *= s
+    return num_features
+
+
+class Net3(nn.Module): #NOTE: 1D conv w/ XXX
+  def __init__(self):
+    super(Net, self).__init__()
+
+
+    #NOTE: BIG embeddings
+
+    #NOTE: small embeddings
+
+
+  def forward(self, xn, xr):
+
+    #NOTE: BIG embeddings
+
+    #NOTE: small embeddings
+
     return x
 
   def num_flat_features(self, x):

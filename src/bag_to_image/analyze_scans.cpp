@@ -1,6 +1,8 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <fstream>
+#include <sstream>
 #include <Eigen/Geometry>
 #include <Eigen/Dense>
 #include "ros/ros.h"
@@ -154,6 +156,36 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
 //  }
 }
 
+void getScansFromTxt() {
+  std::string line;
+  std::ifstream infile("CorruptionQuality.txt");
+
+  while (std::getline(infile, line)) {
+    std::istringstream iss(line);
+    float value;
+    vector<float> single_scan;
+    while (iss >> value) {
+      single_scan.push_back(value);
+    }
+    all_scans_.push_back(single_scan);
+  }
+  vector<vector<float>> normal;
+  vector<vector<float>> personalized;
+  for (size_t i = 0; i < all_scans_.size(); ++i) {
+    if (i < (all_scans_.size()/2)) {
+      normal.push_back(all_scans_[i]);
+    }
+    else {
+      personalized.push_back(all_scans_[i]);
+    }
+  }
+  all_scans_.clear();
+  for (size_t i = 0; i < normal.size(); ++i) {
+    all_scans_.push_back(normal[i]);
+    all_scans_.push_back(personalized[i]);
+  }
+}
+
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     std::cout << "Need bag name..." << std::endl;
@@ -161,6 +193,7 @@ int main(int argc, char* argv[]) {
   }
   bag_name_ = argv[1];
   getScansFromBag();
+  //getScansFromTxt();
 
   ros::init(argc, argv, "scanalyzer");
   ros::NodeHandle nh;
