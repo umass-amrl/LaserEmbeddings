@@ -21,10 +21,10 @@ import convert_png_to_numpy as cptn
 
 from sklearn import manifold
 from torch.autograd import Variable
-from sklearn.decomposition import PCA, KernelPCA
 from mpl_toolkits.mplot3d import Axes3D
 from torchvision import datasets, transforms
-from training_and_def import Net, TripletNet, AverageMeter
+from sklearn.decomposition import PCA, KernelPCA
+from training_and_def import Net1, Net2, Net3, TripletNet, AverageMeter
 
 #TODO: save database of past embeddings so don't have to run them through
 #      network everytime
@@ -40,7 +40,9 @@ def main():
     test_set = cptn.SpecialTestSet()
     #query_set = cptn.SpecialQuerySet()
     
-    model = Net()
+    model = Net1()
+    #model = Net2()
+    #model = Net3()
     tnet = TripletNet(model)
 
     checkpoint_to_load = 'model_checkpoints/current/model_best.pth.tar'

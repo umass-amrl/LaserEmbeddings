@@ -80,16 +80,16 @@ from visdom import Visdom
 
 class Net1(nn.Module): #NOTE: 1D conv (double inception) w/ LeNet style backend
   def __init__(self):
-    super(Net, self).__init__()
+    super(Net1, self).__init__()
 
     # non-square kernel 
-    self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, 1)
-    self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, 2)
-    self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, 4)
-    self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, 8)
-    self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, 16)
-    self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, 32)
-    self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, 64)
+    self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, (0, 1))
+    self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, (0, 2))
+    self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, (0, 4))
+    self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, (0, 8))
+    self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, (0, 16))
+    self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, (0, 32))
+    self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, (0, 64))
 
     self.conv2 = nn.Conv2d(14, 8, 11, 1, 1)
     self.conv3 = nn.Conv2d(8, 16, 5, 1, 1)
@@ -145,16 +145,16 @@ class Net1(nn.Module): #NOTE: 1D conv (double inception) w/ LeNet style backend
 
 class Net2(nn.Module): #NOTE: 1D conv (inception style) w/ straight to large FC
   def __init__(self):
-    super(Net, self).__init__()
+    super(Net2, self).__init__()
 
     # non-square kernel 
-    self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, 1)
-    self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, 2)
-    self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, 4)
-    self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, 8)
-    self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, 16)
-    self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, 32)
-    self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, 64)
+    self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, (0, 1))
+    self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, (0, 2))
+    self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, (0, 4))
+    self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, (0, 8))
+    self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, (0, 16))
+    self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, (0, 32))
+    self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, (0, 64))
 
     self.fc1 = nn.Linear(7 * 64 * 64, 256)
     self.fc2 = nn.Linear(256, 128)
@@ -165,7 +165,7 @@ class Net2(nn.Module): #NOTE: 1D conv (inception style) w/ straight to large FC
     #NOTE: small embeddings
     #self.fc3 = nn.Linear(128, 32)
 
-  def forward(self, xn, xr):
+  def forward(self, xr):
     xr1 = F.relu(self.conv1_1(xr))
     xr2 = F.relu(self.conv1_2(xr))
     xr3 = F.relu(self.conv1_3(xr))
@@ -174,13 +174,13 @@ class Net2(nn.Module): #NOTE: 1D conv (inception style) w/ straight to large FC
     xr6 = F.relu(self.conv1_6(xr))
     xr7 = F.relu(self.conv1_7(xr))
     
-    xr1 = F.max_pool(xr1, (4, 4))
-    xr2 = F.max_pool(xr2, (4, 4))
-    xr3 = F.max_pool(xr3, (4, 4))
-    xr4 = F.max_pool(xr4, (4, 4))
-    xr5 = F.max_pool(xr5, (4, 4))
-    xr6 = F.max_pool(xr6, (4, 4))
-    xr7 = F.max_pool(xr7, (4, 4))
+    xr1 = F.max_pool2d(xr1, (4, 4))
+    xr2 = F.max_pool2d(xr2, (4, 4))
+    xr3 = F.max_pool2d(xr3, (4, 4))
+    xr4 = F.max_pool2d(xr4, (4, 4))
+    xr5 = F.max_pool2d(xr5, (4, 4))
+    xr6 = F.max_pool2d(xr6, (4, 4))
+    xr7 = F.max_pool2d(xr7, (4, 4))
 
     outputs = [xr1, xr2, xr3, xr4, xr5, xr6, xr7]
     x = torch.cat(outputs, 1)
@@ -205,9 +205,9 @@ class Net2(nn.Module): #NOTE: 1D conv (inception style) w/ straight to large FC
     return num_features
 
 
-class Net3(nn.Module): #NOTE: 1D conv w/ XXX
+class Net3(nn.Module): #NOTE: 
   def __init__(self):
-    super(Net, self).__init__()
+    super(Net3, self).__init__()
 
 
     #NOTE: BIG embeddings
@@ -239,9 +239,19 @@ class TripletNet(nn.Module):
     embedded_x = self.embeddingnet(x)
     embedded_y = self.embeddingnet(y)
     embedded_z = self.embeddingnet(z)
+    #TODO: try different distances (cosine, etc.)
     dist_a = F.pairwise_distance(embedded_x, embedded_y, 2) # L-2 norm
     dist_b = F.pairwise_distance(embedded_x, embedded_z, 2) # L-2 norm
     return dist_a, dist_b, embedded_x, embedded_y, embedded_z
+
+#  def forward(self, xn, xr, yn, yr, zn, zr):
+#    embedded_x = self.embeddingnet(xn, xr)
+#    embedded_y = self.embeddingnet(yn, yr)
+#    embedded_z = self.embeddingnet(zn, zr)
+#    #TODO: try different distances (cosine, etc.)
+#    dist_a = F.pairwise_distance(embedded_x, embedded_y, 2) # L-2 norm
+#    dist_b = F.pairwise_distance(embedded_x, embedded_z, 2) # L-2 norm
+#    return dist_a, dist_b, embedded_x, embedded_y, embedded_z
 
 class AverageMeter(object):
   # Computes and stores the average and current value
@@ -277,23 +287,28 @@ class VisdomLinePlotter(object):
     else:
       self.viz.updateTrace(X=np.array([x]), Y=np.array([y]), env=self.env, win=self.plots[var_name], name=split_name)
 
+######################### ONE #########################
 
-def train(train_loader, tnet, criterion, optimizer, epoch):
+def train1(train_loader, tnet, criterion, optimizer, epoch):
   losses = AverageMeter()
   accs = AverageMeter()
   emb_norms = AverageMeter()
 
   # switch to train mode
   tnet.train()
-  for batch_idx, (data1, data2, data3) in enumerate(train_loader):
-    data1, data2, data3 = Variable(data1), Variable(data2), Variable(data3)
-    data1 = data1.cuda()
-    data2 = data2.cuda()
-    data3 = data3.cuda()
+  for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(train_loader):
+    data1n, data2n, data3n = Variable(data1n), Variable(data2n), Variable(data3n)
+    data1r, data2r, data3r = Variable(data1r), Variable(data2r), Variable(data3r)
+    data1n = data1n.cuda()
+    data2n = data2n.cuda()
+    data3n = data3n.cuda()
+    data1r = data1r.cuda()
+    data2r = data2r.cuda()
+    data3r = data3r.cuda()
 
     # compute output
     # NOTE: reversing order of data because I'm not confident in changing down stream eval
-    dista, distb, embedded_x, embedded_y, embedded_z = tnet(data1, data3, data2)
+    dista, distb, embedded_x, embedded_y, embedded_z = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
     # 1 means, dista should be larger than distb
     target = torch.FloatTensor(dista.size()).fill_(1)
     target = Variable(target)
@@ -305,9 +320,9 @@ def train(train_loader, tnet, criterion, optimizer, epoch):
 
     # measure accuracy and record loss
     acc = accuracy(dista, distb)
-    losses.update(loss_triplet.data[0], data1.size(0))
-    accs.update(acc, data1.size(0))
-    emb_norms.update(loss_embedd.data[0]/3, data1.size(0))
+    losses.update(loss_triplet.data[0], data1n.size(0))
+    accs.update(acc, data1n.size(0))
+    emb_norms.update(loss_embedd.data[0]/3, data1n.size(0))
 
     # compute gradient and do optimizer step
     optimizer.zero_grad()
@@ -320,7 +335,7 @@ def train(train_loader, tnet, criterion, optimizer, epoch):
             'Loss: {:.4f} ({:.4f}) \t'
             'Acc: {:.2f}% ({:.2f}%) \t'
             'Emb_Norm: {:.2f} ({:.2f})'.format(
-          epoch, batch_idx * len(data1), len(train_loader.dataset),
+          epoch, batch_idx * len(data1n), len(train_loader.dataset),
           losses.val, losses.avg, 
           100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
   # log avg values to somewhere
@@ -329,21 +344,203 @@ def train(train_loader, tnet, criterion, optimizer, epoch):
   plotter.plot('emb_norms', 'train', epoch, emb_norms.avg)
 
 
-def test(test_loader, tnet, criterion, epoch):
+def test1(test_loader, tnet, criterion, epoch):
   losses = AverageMeter()
   accs = AverageMeter()
 
   # switch to evaluation mode
   tnet.eval()
-  for batch_idx, (data1, data2, data3) in enumerate(test_loader):
-    data1, data2, data3 = Variable(data1), Variable(data2), Variable(data3)
-    data1 = data1.cuda()
-    data2 = data2.cuda()
-    data3 = data3.cuda()
+  for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(test_loader):
+    data1n, data2n, data3n = Variable(data1n), Variable(data2n), Variable(data3n)
+    data1r, data2r, data3r = Variable(data1r), Variable(data2r), Variable(data3r)
+    data1n = data1n.cuda()
+    data2n = data2n.cuda()
+    data3n = data3n.cuda()
+    data1r = data1r.cuda()
+    data2r = data2r.cuda()
+    data3r = data3r.cuda()
 
     # compute output
     # NOTE: reversing order of data because I'm not confident in changing down stream eval
-    dista, distb, _, _, _ = tnet(data1, data3, data2)
+    dista, distb, _, _, _ = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
+    target = torch.FloatTensor(dista.size()).fill_(1)
+    target = Variable(target)
+    target = target.cuda()
+
+    test_loss =  criterion(dista, distb, target).data[0]
+
+    # measure accuracy and record loss
+    acc = accuracy(dista, distb)
+    accs.update(acc, data1n.size(0))
+    losses.update(test_loss, data1n.size(0))      
+
+  print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
+      losses.avg, 100. * accs.avg))
+  plotter.plot('acc', 'test', epoch, accs.avg)
+  plotter.plot('loss', 'test', epoch, losses.avg)
+  return accs.avg
+
+######################### TWO #########################
+
+def train2(train_loader, tnet, criterion, optimizer, epoch):
+  losses = AverageMeter()
+  accs = AverageMeter()
+  emb_norms = AverageMeter()
+
+  # switch to train mode
+  tnet.train()
+  for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(train_loader):
+    data1r, data2r, data3r = Variable(data1r), Variable(data2r), Variable(data3r)
+    data1r = data1r.cuda()
+    data2r = data2r.cuda()
+    data3r = data3r.cuda()
+
+    # compute output
+    # NOTE: reversing order of data because I'm not confident in changing down stream eval
+    dista, distb, embedded_x, embedded_y, embedded_z = tnet(data1r, data3r, data2r)
+    # 1 means, dista should be larger than distb
+    target = torch.FloatTensor(dista.size()).fill_(1)
+    target = Variable(target)
+    target = target.cuda()
+
+    loss_triplet = criterion(dista, distb, target)
+    loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
+    loss = loss_triplet + 0.001 * loss_embedd
+
+    # measure accuracy and record loss
+    acc = accuracy(dista, distb)
+    losses.update(loss_triplet.data[0], data1r.size(0))
+    accs.update(acc, data1r.size(0))
+    emb_norms.update(loss_embedd.data[0]/3, data1r.size(0))
+
+    # compute gradient and do optimizer step
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+    log_interval = 10
+
+    if batch_idx % log_interval == 0:
+      print('Train Epoch: {} [{}/{}]\t'
+            'Loss: {:.4f} ({:.4f}) \t'
+            'Acc: {:.2f}% ({:.2f}%) \t'
+            'Emb_Norm: {:.2f} ({:.2f})'.format(
+          epoch, batch_idx * len(data1r), len(train_loader.dataset),
+          losses.val, losses.avg, 
+          100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
+  # log avg values to somewhere
+  plotter.plot('acc', 'train', epoch, accs.avg)
+  plotter.plot('loss', 'train', epoch, losses.avg)
+  plotter.plot('emb_norms', 'train', epoch, emb_norms.avg)
+
+
+def test2(test_loader, tnet, criterion, epoch):
+  losses = AverageMeter()
+  accs = AverageMeter()
+
+  # switch to evaluation mode
+  tnet.eval()
+  for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(test_loader):
+    data1r, data2r, data3r = Variable(data1r), Variable(data2r), Variable(data3r)
+    data1r = data1r.cuda()
+    data2r = data2r.cuda()
+    data3r = data3r.cuda()
+
+    # compute output
+    # NOTE: reversing order of data because I'm not confident in changing down stream eval
+    dista, distb, _, _, _ = tnet(data1r, data3r, data2r)
+    target = torch.FloatTensor(dista.size()).fill_(1)
+    target = Variable(target)
+    target = target.cuda()
+
+    test_loss =  criterion(dista, distb, target).data[0]
+
+    # measure accuracy and record loss
+    acc = accuracy(dista, distb)
+    accs.update(acc, data1r.size(0))
+    losses.update(test_loss, data1r.size(0))      
+
+  print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
+      losses.avg, 100. * accs.avg))
+  plotter.plot('acc', 'test', epoch, accs.avg)
+  plotter.plot('loss', 'test', epoch, losses.avg)
+  return accs.avg
+
+######################### THREE #########################
+
+def train3(train_loader, tnet, criterion, optimizer, epoch):
+  losses = AverageMeter()
+  accs = AverageMeter()
+  emb_norms = AverageMeter()
+
+  # switch to train mode
+  tnet.train()
+  for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(train_loader):
+    data1n, data2n, data3n = Variable(data1n), Variable(data2n), Variable(data3n)
+    data1r, data2r, data3r = Variable(data1r), Variable(data2r), Variable(data3r)
+    data1n = data1n.cuda()
+    data2n = data2n.cuda()
+    data3n = data3n.cuda()
+    data1r = data1r.cuda()
+    data2r = data2r.cuda()
+    data3r = data3r.cuda()
+
+    # compute output
+    # NOTE: reversing order of data because I'm not confident in changing down stream eval
+    dista, distb, embedded_x, embedded_y, embedded_z = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
+    # 1 means, dista should be larger than distb
+    target = torch.FloatTensor(dista.size()).fill_(1)
+    target = Variable(target)
+    target = target.cuda()
+
+    loss_triplet = criterion(dista, distb, target)
+    loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
+    loss = loss_triplet + 0.001 * loss_embedd
+
+    # measure accuracy and record loss
+    acc = accuracy(dista, distb)
+    losses.update(loss_triplet.data[0], data1n.size(0))
+    accs.update(acc, data1n.size(0))
+    emb_norms.update(loss_embedd.data[0]/3, data1n.size(0))
+
+    # compute gradient and do optimizer step
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+    log_interval = 10
+
+    if batch_idx % log_interval == 0:
+      print('Train Epoch: {} [{}/{}]\t'
+            'Loss: {:.4f} ({:.4f}) \t'
+            'Acc: {:.2f}% ({:.2f}%) \t'
+            'Emb_Norm: {:.2f} ({:.2f})'.format(
+          epoch, batch_idx * len(data1n), len(train_loader.dataset),
+          losses.val, losses.avg, 
+          100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
+  # log avg values to somewhere
+  plotter.plot('acc', 'train', epoch, accs.avg)
+  plotter.plot('loss', 'train', epoch, losses.avg)
+  plotter.plot('emb_norms', 'train', epoch, emb_norms.avg)
+
+
+def test3(test_loader, tnet, criterion, epoch):
+  losses = AverageMeter()
+  accs = AverageMeter()
+
+  # switch to evaluation mode
+  tnet.eval()
+  for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(test_loader):
+    data1n, data2n, data3n = Variable(data1n), Variable(data2n), Variable(data3n)
+    data1r, data2r, data3r = Variable(data1r), Variable(data2r), Variable(data3r)
+    data1n = data1n.cuda()
+    data2n = data2n.cuda()
+    data3n = data3n.cuda()
+    data1r = data1r.cuda()
+    data2r = data2r.cuda()
+    data3r = data3r.cuda()
+
+    # compute output
+    # NOTE: reversing order of data because I'm not confident in changing down stream eval
+    dista, distb, _, _, _ = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
     target = torch.FloatTensor(dista.size()).fill_(1)
     target = Variable(target)
     target = target.cuda()
@@ -360,7 +557,6 @@ def test(test_loader, tnet, criterion, epoch):
   plotter.plot('acc', 'test', epoch, accs.avg)
   plotter.plot('loss', 'test', epoch, losses.avg)
   return accs.avg
-
 
 def accuracy(dista, distb):
   margin = 0
@@ -385,7 +581,9 @@ def main():
 
   train_loader, test_loader = cptn.CurateTrainTest()
 
-  model = Net()
+  #model = Net1()
+  model = Net2()
+  #model = Net3()
   model = model.cuda()
   tnet = TripletNet(model)
   tnet = tnet.cuda()
@@ -421,9 +619,14 @@ def main():
 
   for epoch in range(start_epoch, epochs + 1):
     # train for one epoch
-    train(train_loader, tnet, criterion, optimizer, epoch)
+    #train1(train_loader, tnet, criterion, optimizer, epoch)
+    train2(train_loader, tnet, criterion, optimizer, epoch)
+    #train3(train_loader, tnet, criterion, optimizer, epoch)
+    
     # evaluate on validation set
-    acc = test(test_loader, tnet, criterion, epoch)
+    #acc = test1(test_loader, tnet, criterion, epoch)
+    acc = test2(test_loader, tnet, criterion, epoch)
+    #acc = test3(test_loader, tnet, criterion, epoch)
 
     print('current acc: ')
     print(acc)
