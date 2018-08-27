@@ -165,10 +165,24 @@ void applySeasoning(const float amount, vector<vector<float>>* all_scans) {
   for (size_t i = 0; i < all_scans->size(); ++i) {
     for (size_t j = 0; j < all_scans[0][i].size(); ++j) {
       float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-      if (r <= amount) { // truncate ==> set max range+ to 0
+      if (r <= amount) {
         const float seasoned_obs = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/max_range));
         all_scans[0][i][j] = seasoned_obs;
       }
+    }
+  }
+}
+
+void applyBlur(const float haze, vector<vector<float>>* all_scans) {
+  for (size_t i = 0; i < all_scans->size(); ++i) {
+    for (size_t j = 0; j < all_scans[0][i].size(); ++j) {
+      //TODO: sample gaussian
+      //TODO: make sure its within (0, max_range)
+      //float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+      //if (r <= amount) {
+      //  const float seasoned_obs = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/max_range));
+      //  all_scans[0][i][j] = seasoned_obs;
+      //}
     }
   }
 }
@@ -262,7 +276,8 @@ void applyHumans(const int FOV, vector<vector<float>>* all_scans) {
 
 void writeScans(vector<vector<float>>* all_scans) {
   std::ofstream outfile;
-  outfile.open("CorruptionQuality.txt", std::ios_base::app);
+  //outfile.open("CorruptionQuality.txt", std::ios_base::app);
+  outfile.open("RawScans.txt", std::ios_base::app);
   for (size_t i = 0; i < all_scans->size(); ++i) {
     for (size_t j = 0; j < all_scans[0][i].size(); ++j) {
       outfile << all_scans[0][i][j] << " ";
@@ -274,11 +289,16 @@ void writeScans(vector<vector<float>>* all_scans) {
 void applyCorruption(const float FOV,
                      const bool truncate,
                      const bool seasoning,
+                     const bool blur,
                      const bool humans,
                      vector<vector<float>>* all_scans) {
   //writeScans(all_scans);
   if (humans) {
     applyHumans(FOV, all_scans);
+  }
+  if (blur) {
+    float haze = 0.04; // meters
+    applyBlur(haze, all_scans);
   }
   if (seasoning) {
     float amount = 0.05;
@@ -393,15 +413,19 @@ int main(int argc, char* argv[]) {
   float laser_max_range = atof(argv[3]);
   bool truncate = false;
   bool seasoning = false; // Add salt-and-pepper-type noise
-  bool humans = false;
+  bool blur = false;
+  bool humans = true;
   //printf(argv[1]); printf("\n"); fflush(stdout);
   //printf("%d \n", FOV); fflush(stdout);
   //printf("%f \n", laser_max_range); fflush(stdout);
   vector<vector<float>> all_scans;
   getScansFromBag(laser_max_range, &all_scans);
+  //NOTE: for baseline testing
+  //writeScans(&all_scans);
+  
   srand (static_cast <unsigned> (time(0)));
-  applyCorruption(FOV, truncate, seasoning, humans, &all_scans);
-  //convertScansToImages(all_scans);
+  applyCorruption(FOV, truncate, seasoning, blur, humans, &all_scans);
+  ////convertScansToImages(all_scans);
   convertScansToImagesPadAndFixedBounds(all_scans, FOV);
   return 0;
 }

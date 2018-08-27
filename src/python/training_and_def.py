@@ -9,10 +9,12 @@ Created on Tue Mar  6 17:35:43 2018
 """
 
 from __future__ import print_function
-import argparse
+
 import os
-import shutil
+#import copy
 import torch
+import shutil
+import argparse
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
@@ -20,9 +22,9 @@ import torch.nn.functional as F
 import convert_png_to_numpy as cptn
 import torch.backends.cudnn as cudnn
 
+from visdom import Visdom
 from torch.autograd import Variable
 from torchvision import datasets, transforms
-from visdom import Visdom
 
 
 
@@ -97,10 +99,10 @@ class Net1(nn.Module): #NOTE: 1D conv (double inception) w/ LeNet style backend
     self.fc2 = nn.Linear(256, 128)
 
     #NOTE: BIG embeddings
-    self.fc3 = nn.Linear(128, 64)
+    #self.fc3 = nn.Linear(128, 64)
 
     #NOTE: small embeddings
-    #self.fc3 = nn.Linear(128, 32)
+    self.fc3 = nn.Linear(128, 32)
 
   def forward(self, xn, xr):
     xn1 = F.relu(self.conv1_1(xn))
@@ -128,10 +130,10 @@ class Net1(nn.Module): #NOTE: 1D conv (double inception) w/ LeNet style backend
     x = F.relu(self.fc2(x))
 
     #NOTE: BIG embeddings
-    x = self.fc3(x)
+    #x = self.fc3(x)
 
     #NOTE: small embeddings
-    #x = self.fc3(x)
+    x = self.fc3(x)
 
     return x
 
@@ -160,10 +162,10 @@ class Net2(nn.Module): #NOTE: 1D conv (inception style) w/ straight to large FC
     self.fc2 = nn.Linear(256, 128)
 
     #NOTE: BIG embeddings
-    self.fc3 = nn.Linear(128, 64)
+    #self.fc3 = nn.Linear(128, 64)
 
     #NOTE: small embeddings
-    #self.fc3 = nn.Linear(128, 32)
+    self.fc3 = nn.Linear(128, 32)
 
   def forward(self, xr):
     xr1 = F.relu(self.conv1_1(xr))
@@ -190,10 +192,10 @@ class Net2(nn.Module): #NOTE: 1D conv (inception style) w/ straight to large FC
     x = F.relu(self.fc2(x))
 
     #NOTE: BIG embeddings
-    x = self.fc3(x)
+    #x = self.fc3(x)
 
     #NOTE: small embeddings
-    #x = self.fc3(x)
+    x = self.fc3(x)
 
     return x
 
@@ -209,19 +211,67 @@ class Net3(nn.Module): #NOTE:
   def __init__(self):
     super(Net3, self).__init__()
 
+    # non-square kernel 
+    self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, (0, 1))
+    self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, (0, 2))
+    self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, (0, 4))
+    self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, (0, 8))
+    self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, (0, 16))
+    self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, (0, 32))
+    self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, (0, 64))
+
+    self.conv2 = nn.Conv2d(14, 8, 11, 1, 1)
+    self.conv3 = nn.Conv2d(8, 16, 5, 1, 1)
+    self.fc1 = nn.Linear(16 * 30 * 30, 256)
+    self.fc2 = nn.Linear(256, 128)
 
     #NOTE: BIG embeddings
+    #self.fc3 = nn.Linear(128, 64)
+    #self.fc4 = nn.Linear(64, 128)
 
     #NOTE: small embeddings
+    self.fc3 = nn.Linear(128, 32)
+    self.fc4 = nn.Linear(32, 128)
+
+    self.fc5 = nn.Linear(128, 256)
 
 
   def forward(self, xn, xr):
+    xn1 = F.relu(self.conv1_1(xn))
+    xr1 = F.relu(self.conv1_1(xr))
+    xn2 = F.relu(self.conv1_2(xn))
+    xr2 = F.relu(self.conv1_2(xr))
+    xn3 = F.relu(self.conv1_3(xn))
+    xr3 = F.relu(self.conv1_3(xr))
+    xn4 = F.relu(self.conv1_4(xn))
+    xr4 = F.relu(self.conv1_4(xr))
+    xn5 = F.relu(self.conv1_5(xn))
+    xr5 = F.relu(self.conv1_5(xr))
+    xn6 = F.relu(self.conv1_6(xn))
+    xr6 = F.relu(self.conv1_6(xr))
+    xn7 = F.relu(self.conv1_7(xn))
+    xr7 = F.relu(self.conv1_7(xr))
+
+    outputs = [xn1, xr1, xn2, xr2, xn3, xr3, xn4, xr4, xn5, xr5, xn6, xr6, xn7, xr7]
+    x = torch.cat(outputs, 1)
+
+    x = F.max_pool2d(F.relu(self.conv2(x)), (4, 4))
+    x = F.max_pool2d(F.relu(self.conv3(x)), (2, 2))
+    x = x.view(-1, self.num_flat_features(x))
+    x = F.relu(self.fc1(x))
+    x = F.relu(self.fc2(x))
 
     #NOTE: BIG embeddings
+    #emb = self.fc3(x)
 
     #NOTE: small embeddings
+    emb = self.fc3(x)
 
-    return x
+    x = F.relu(self.fc3(x))
+    x = F.relu(self.fc4(x))
+    x = self.fc5(x)
+
+    return emb, x
 
   def num_flat_features(self, x):
     size = x.size()[1:]  # all dimensions except the batch dimension
@@ -235,15 +285,6 @@ class TripletNet(nn.Module):
     super(TripletNet, self).__init__()
     self.embeddingnet = embeddingnet
 
-  def forward(self, x, y, z):
-    embedded_x = self.embeddingnet(x)
-    embedded_y = self.embeddingnet(y)
-    embedded_z = self.embeddingnet(z)
-    #TODO: try different distances (cosine, etc.)
-    dist_a = F.pairwise_distance(embedded_x, embedded_y, 2) # L-2 norm
-    dist_b = F.pairwise_distance(embedded_x, embedded_z, 2) # L-2 norm
-    return dist_a, dist_b, embedded_x, embedded_y, embedded_z
-
 #  def forward(self, xn, xr, yn, yr, zn, zr):
 #    embedded_x = self.embeddingnet(xn, xr)
 #    embedded_y = self.embeddingnet(yn, yr)
@@ -252,6 +293,27 @@ class TripletNet(nn.Module):
 #    dist_a = F.pairwise_distance(embedded_x, embedded_y, 2) # L-2 norm
 #    dist_b = F.pairwise_distance(embedded_x, embedded_z, 2) # L-2 norm
 #    return dist_a, dist_b, embedded_x, embedded_y, embedded_z
+
+#  def forward(self, x, y, z):
+#    embedded_x = self.embeddingnet(x)
+#    embedded_y = self.embeddingnet(y)
+#    embedded_z = self.embeddingnet(z)
+#    #TODO: try different distances (cosine, etc.)
+#    dist_a = F.pairwise_distance(embedded_x, embedded_y, 2) # L-2 norm
+#    dist_b = F.pairwise_distance(embedded_x, embedded_z, 2) # L-2 norm
+#    return dist_a, dist_b, embedded_x, embedded_y, embedded_z
+
+  def forward(self, xn, xr, yn, yr, zn, zr):
+    embedded_x, recreated_x = self.embeddingnet(xn, xr)
+    embedded_y, recreated_y = self.embeddingnet(yn, yr)
+    embedded_z, recreated_z = self.embeddingnet(zn, zr)
+    #dist_a = F.pairwise_distance(embedded_x, embedded_y, 2) # L-2 norm
+    #dist_b = F.pairwise_distance(embedded_x, embedded_z, 2) # L-2 norm
+    target_a = torch.FloatTensor(1).fill_(1)
+    target_b = torch.FloatTensor(1).fill_(1)
+    dist_a = F.cosine_similarity(embedded_x, embedded_y) # cosine distance
+    dist_b = F.cosine_similarity(embedded_x, embedded_z) # cosine distance
+    return dist_a, dist_b, embedded_x, embedded_y, embedded_z, recreated_x
 
 class AverageMeter(object):
   # Computes and stores the average and current value
@@ -372,7 +434,7 @@ def test1(test_loader, tnet, criterion, epoch):
     # measure accuracy and record loss
     acc = accuracy(dista, distb)
     accs.update(acc, data1n.size(0))
-    losses.update(test_loss, data1n.size(0))      
+    losses.update(test_loss, data1n.size(0))
 
   print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
       losses.avg, 100. * accs.avg))
@@ -467,7 +529,7 @@ def test2(test_loader, tnet, criterion, epoch):
 
 ######################### THREE #########################
 
-def train3(train_loader, tnet, criterion, optimizer, epoch):
+def train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch):
   losses = AverageMeter()
   accs = AverageMeter()
   emb_norms = AverageMeter()
@@ -475,6 +537,9 @@ def train3(train_loader, tnet, criterion, optimizer, epoch):
   # switch to train mode
   tnet.train()
   for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(train_loader):
+    ds_scan = data1n[:, 0, 0,:]
+    ds_scan = Variable(ds_scan)
+    ds_scan = ds_scan.cuda()
     data1n, data2n, data3n = Variable(data1n), Variable(data2n), Variable(data3n)
     data1r, data2r, data3r = Variable(data1r), Variable(data2r), Variable(data3r)
     data1n = data1n.cuda()
@@ -486,15 +551,16 @@ def train3(train_loader, tnet, criterion, optimizer, epoch):
 
     # compute output
     # NOTE: reversing order of data because I'm not confident in changing down stream eval
-    dista, distb, embedded_x, embedded_y, embedded_z = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
+    dista, distb, embedded_x, embedded_y, embedded_z, reconstruction = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
     # 1 means, dista should be larger than distb
-    target = torch.FloatTensor(dista.size()).fill_(1)
-    target = Variable(target)
-    target = target.cuda()
+    target1 = torch.FloatTensor(dista.size()).fill_(1)
+    target1 = Variable(target1)
+    target1 = target1.cuda()
 
-    loss_triplet = criterion(dista, distb, target)
+    loss_triplet = criterion1(dista, distb, target1)
+    loss_reconstruction = torch.mean(criterion2(ds_scan, reconstruction))
     loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
-    loss = loss_triplet + 0.001 * loss_embedd
+    loss = loss_triplet + loss_reconstruction + 0.001 * loss_embedd
 
     # measure accuracy and record loss
     acc = accuracy(dista, distb)
@@ -540,7 +606,7 @@ def test3(test_loader, tnet, criterion, epoch):
 
     # compute output
     # NOTE: reversing order of data because I'm not confident in changing down stream eval
-    dista, distb, _, _, _ = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
+    dista, distb, _, _, _, _ = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
     target = torch.FloatTensor(dista.size()).fill_(1)
     target = Variable(target)
     target = target.cuda()
@@ -549,8 +615,8 @@ def test3(test_loader, tnet, criterion, epoch):
 
     # measure accuracy and record loss
     acc = accuracy(dista, distb)
-    accs.update(acc, data1.size(0))
-    losses.update(test_loss, data1.size(0))      
+    accs.update(acc, data1n.size(0))
+    losses.update(test_loss, data1n.size(0))
 
   print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
       losses.avg, 100. * accs.avg))
@@ -582,8 +648,8 @@ def main():
   train_loader, test_loader = cptn.CurateTrainTest()
 
   #model = Net1()
-  model = Net2()
-  #model = Net3()
+  #model = Net2()
+  model = Net3()
   model = model.cuda()
   tnet = TripletNet(model)
   tnet = tnet.cuda()
@@ -606,12 +672,19 @@ def main():
     else:
       print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
 
-  margin = 1
+  #margin = 1
+  margin = 0.4
   learning_rate = 0.001
   momentum = 0.9
-  epochs = 20
+  #epochs = 20
+  #epochs = 3
+  epochs = 10
 
-  criterion = torch.nn.MarginRankingLoss(margin=margin)
+  #criterion = torch.nn.MarginRankingLoss(margin=margin)
+  #NOTE: For net 3
+  criterion1 = torch.nn.MarginRankingLoss(margin=margin)
+  #criterion1 = torch.nn.CosineEmbeddingLoss(margin=margin)
+  criterion2 = torch.nn.PairwiseDistance(p=2)
   optimizer = optim.SGD(tnet.parameters(), lr=learning_rate, momentum=momentum)
 
   n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
@@ -620,13 +693,13 @@ def main():
   for epoch in range(start_epoch, epochs + 1):
     # train for one epoch
     #train1(train_loader, tnet, criterion, optimizer, epoch)
-    train2(train_loader, tnet, criterion, optimizer, epoch)
-    #train3(train_loader, tnet, criterion, optimizer, epoch)
+    #train2(train_loader, tnet, criterion, optimizer, epoch)
+    train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch)
     
     # evaluate on validation set
     #acc = test1(test_loader, tnet, criterion, epoch)
-    acc = test2(test_loader, tnet, criterion, epoch)
-    #acc = test3(test_loader, tnet, criterion, epoch)
+    #acc = test2(test_loader, tnet, criterion, epoch)
+    acc = test3(test_loader, tnet, criterion1, epoch)
 
     print('current acc: ')
     print(acc)

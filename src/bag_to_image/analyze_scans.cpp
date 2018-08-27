@@ -11,6 +11,7 @@
 #include "rosbag/view.h"
 #include "sensor_msgs/LaserScan.h"
 #include "gui_msgs/GuiKeyboardEvent.h"
+#include "gui_msgs/GuiMouseClickEvent.h"
 #include "gui_msgs/LidarDisplayMsg.h"
 #include "../perception_tools/perception_2d.h"
 
@@ -122,6 +123,16 @@ void setCurrentView() {
   else {
     current_view_ = scanID;
     pubScan();
+  }
+}
+
+void MouseClickCallback(const gui_msgs::GuiMouseClickEvent& msg) {
+  if (static_cast<uint32_t>(msg.modifiers) == 2) {
+    float th1 = atan2(msg.mouse_down.y, msg.mouse_down.x);
+    float th2 = atan2(msg.mouse_up.y, msg.mouse_up.x);
+    //TODO: test
+    //TODO: figure out how to save / use this info
+    //TODO: labeling ability?
   }
 }
 
