@@ -23,10 +23,11 @@ struct ScanFeatureMetaData {
   vector<float> ranges;
   float start_angle;
   float end_angle;
-  uint8_t type; // human = 0, door = 1, corner = 2
+  int type; // human = 0, door = 1, corner = 2
 };
 
 ScanFeatureMetaData scan_feature_;
+bool feature_selected_ = false;
 
 ros::Subscriber mouse_subscriber_;
 ros::Subscriber keyboard_subscriber_;
@@ -40,9 +41,6 @@ vector<vector<float>> all_scans_;
 int current_view_ = 1;
 vector<int> id_in_progress_;
 
-bool feature_selected_ = false;
-//TODO: set this file
-string scan_feature_file_ = "test_scan_feature.txt";
 
 float min_range = 0.0;    // meters
 float max_range = 10.0;   // meters
@@ -125,6 +123,16 @@ void pubScan() {
 void saveScanFeature(string filename) {
   //TODO: save feature stored in 'scan_feature_' to file 'filename'
   std::cout << "saving feature" << std::endl;
+  // bag_name_, current_view_-1, type, start_angle, end_angle, range[0], ..., range[n]
+  std::ofstream outfile;
+
+  outfile.open(filename, std::ios_base::app);
+  outfile << bag_name_ << ", " << current_view_ - 1 << ", " 
+          << scan_feature_.type << ", " << scan_feature_.start_angle << ", " << scan_feature_.end_angle;
+  for (size_t i = 0; i < scan_feature_.ranges.size(); ++i) {
+    outfile << ", " << scan_feature_.ranges[i];
+  }
+  outfile << "\n";
 }
 
 void incrementView() {
@@ -281,19 +289,19 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
     if (msg.keycode == 0x48) { // key code for 'h' for human
       std::cout << "human feature" << std::endl;
       scan_feature_.type = 0; // human
-      saveScanFeature(scan_feature_file_);
+      saveScanFeature("human_features.txt");
       feature_selected_ = false;
     }
     else if (msg.keycode == 0x44) { // key code 68 for 'd' for door
       std::cout << "door feature" << std::endl;
       scan_feature_.type = 1; // door
-      saveScanFeature(scan_feature_file_);
+      saveScanFeature("door_features.txt");
       feature_selected_ = false;
     }
     else if (msg.keycode == 0x43) { // key code 67 for 'c' for corner
       std::cout << "corner feature" << std::endl;
       scan_feature_.type = 2; // corner
-      saveScanFeature(scan_feature_file_);
+      saveScanFeature("corner_features.txt");
       feature_selected_ = false;
     }
     else if (msg.keycode == 0x52) { // key code 82 for 'r' for reset
