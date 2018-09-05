@@ -18,6 +18,17 @@
 using std::string;
 using std::vector;
 
+//TODO: enum this type?
+struct ScanFeatureMetaData {
+  vector<float> ranges;
+  float start_angle;
+  float end_angle;
+  uint8_t type; // human = 0, door = 1, corner = 2
+};
+
+ScanFeatureMetaData scan_feature_;
+
+ros::Subscriber mouse_subscriber_;
 ros::Subscriber keyboard_subscriber_;
 ros::Publisher display_publisher_;
 
@@ -27,8 +38,11 @@ string bag_name_;
 vector<vector<float>> all_scans_;
 
 int current_view_ = 1;
-
 vector<int> id_in_progress_;
+
+bool feature_selected_ = false;
+//TODO: set this file
+string scan_feature_file_ = "test_scan_feature.txt";
 
 float min_range = 0.0;    // meters
 float max_range = 10.0;   // meters
@@ -65,6 +79,26 @@ void getScansFromBag() {
   printf("%d scans loaded.\n", static_cast<int>(all_scans_.size()));
 }
 
+/*
+// NOTE: for debugging / verifying stuff
+void pubScanFeature() {
+  display_message_.points_x.clear();
+  display_message_.points_y.clear();
+  
+  vector<float> scan = scan_feature_.ranges;
+  float start_angle = scan_feature_.start_angle * 180.0 / M_PI;
+  for (size_t i = 0; i < scan.size(); ++i) {
+    float angle = (start_angle + angular_res * i) * (M_PI / 180.0);
+    Eigen::Rotation2Df R(angle);
+    Eigen::Vector2f x(scan[i], 0.0);
+    Eigen::Vector2f p = R * x;
+    display_message_.points_x.push_back(p(0));
+    display_message_.points_y.push_back(p(1));
+  }
+  display_publisher_.publish(display_message_);
+}
+*/
+
 void pubScan() {
   //TODO: figure out why there is lag / weird behavior in the scan display
   std::cout << "scan number: " << current_view_ << std::endl;
@@ -87,6 +121,11 @@ void pubScan() {
 //  vector<float> scan = all_scans_[current_view_ - 1];
 //  todo: save scan?
 //}
+
+void saveScanFeature(string filename) {
+  //TODO: save feature stored in 'scan_feature_' to file 'filename'
+  std::cout << "saving feature" << std::endl;
+}
 
 void incrementView() {
   if (current_view_ == int(all_scans_.size())) {
@@ -127,16 +166,84 @@ void setCurrentView() {
 }
 
 void MouseClickCallback(const gui_msgs::GuiMouseClickEvent& msg) {
-  if (static_cast<uint32_t>(msg.modifiers) == 2) {
-    float th1 = atan2(msg.mouse_down.y, msg.mouse_down.x);
-    float th2 = atan2(msg.mouse_up.y, msg.mouse_up.x);
-    //TODO: test
-    //TODO: figure out how to save / use this info
-    //TODO: labeling ability?
+  //TODO: move to global. decide how to set based on laser input
+  float min_angle_ = -135.0 * (M_PI / 180.0);
+  float max_angle_ = 135.0 * (M_PI / 180.0);
+  int min_feature_size_ = 5;
+
+  float th1 = atan2(msg.mouse_down.y, msg.mouse_down.x);
+  Eigen::Vector3f v1(msg.mouse_down.x, msg.mouse_down.y, 0.0);
+  float th2 = atan2(msg.mouse_up.y, msg.mouse_up.x);
+  Eigen::Vector3f v2(msg.mouse_up.x, msg.mouse_up.y, 0.0);
+  if (static_cast<uint32_t>(msg.modifiers) == 1 ||
+      static_cast<uint32_t>(msg.modifiers) == 2) {
+    // TODO: take care of all feature selection corner cases
+    if (static_cast<uint32_t>(msg.modifiers) == 1) {
+//      std::cout << "tagging small angle" << std::endl;
+
+      int start_index = -1;
+      int end_index = -1;
+      vector<float> scan = all_scans_[current_view_ - 1];
+      float angular_resolution = (fabs(min_angle_ - max_angle_) / float(scan.size()));
+//      std::cout << "ang_res: " << angular_resolution << std::endl;
+      if ((v1.cross(v2))(2) > 0.0) { // correct, ccw ordering
+        if (th1 > min_angle_ && th1 < max_angle_ &&
+            th2 > min_angle_ && th2 < max_angle_) {
+//          std::cout << "CCW" << std::endl;
+          start_index = fabs(min_angle_ - th1) / angular_resolution;
+          end_index = fabs(min_angle_ - th2) / angular_resolution;
+          scan_feature_.start_angle = th1;
+          scan_feature_.end_angle = th2;
+        }
+        else {
+          std::cout << "feature is not fully contained in laser field of view. Ignoring" << std::endl;
+        }
+      }
+      else {
+        if (th1 > min_angle_ && th1 < max_angle_ &&
+            th2 > min_angle_ && th2 < max_angle_) {
+//          std::cout << "CW" << std::endl;
+          end_index = fabs(min_angle_ - th1) / angular_resolution;
+          start_index = fabs(min_angle_ - th2) / angular_resolution;
+          scan_feature_.end_angle = th1;
+          scan_feature_.start_angle = th2;
+        }
+        else {
+          std::cout << "feature is not fully contained in laser field of view. Ignoring" << std::endl;
+        }
+      }
+
+      if (start_index < int(scan.size()) && start_index > 0 &&
+          end_index < int(scan.size()) && end_index > 0 &&
+          start_index + min_feature_size_ < end_index) {
+
+        scan_feature_.ranges.clear();
+        for (int i = start_index; i < end_index; ++i) {
+          scan_feature_.ranges.push_back(scan[i]);
+        }
+
+        feature_selected_ = true;
+
+        std::cout << "selected feature with " << scan_feature_.ranges.size() << " points" << std::endl;
+
+//        pubScanFeature();
+      }
+      else {
+        std::cout << "Something went wrong when calculating feature start and stop indices." << std::endl;
+      }
+
+    }
+    else if (static_cast<uint32_t>(msg.modifiers) == 2) {
+      std::cout << "tagging large angle" << std::endl;
+      std::cout << "not currently implemented" << std::endl;
+      //TODO: populate scan feature
+    }
   }
 }
 
 void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
+
+  ////////// looking through scans //////////
   if (msg.keycode == 0x1000012) { // left arrow key ==> decrement view
     decrementView();
   }
@@ -162,9 +269,39 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
     setCurrentView();
     id_in_progress_.clear();
   }
+  ////////// looking through scans //////////
+
 //  else if (msg.keycode == 0x56) { // key code 86, 'v' for save
 //    saveScan("ScansOfInterest.txt");
 //  }
+
+  ////////// saving and labeling features //////////
+
+  if (feature_selected_) {
+    if (msg.keycode == 0x48) { // key code for 'h' for human
+      std::cout << "human feature" << std::endl;
+      scan_feature_.type = 0; // human
+      saveScanFeature(scan_feature_file_);
+      feature_selected_ = false;
+    }
+    else if (msg.keycode == 0x44) { // key code 68 for 'd' for door
+      std::cout << "door feature" << std::endl;
+      scan_feature_.type = 1; // door
+      saveScanFeature(scan_feature_file_);
+      feature_selected_ = false;
+    }
+    else if (msg.keycode == 0x43) { // key code 67 for 'c' for corner
+      std::cout << "corner feature" << std::endl;
+      scan_feature_.type = 2; // corner
+      saveScanFeature(scan_feature_file_);
+      feature_selected_ = false;
+    }
+    else if (msg.keycode == 0x52) { // key code 82 for 'r' for reset
+      std::cout << "reset" << std::endl;
+      feature_selected_ = false;
+    }
+  }
+  ////////// saving and labeling features //////////
 }
 
 void getScansFromTxt() {
@@ -209,6 +346,7 @@ int main(int argc, char* argv[]) {
   ros::init(argc, argv, "scanalyzer");
   ros::NodeHandle nh;
 
+  mouse_subscriber_ = nh.subscribe("Gui/VectorLocalization/GuiMouseClickEvents", 1, MouseClickCallback);
   keyboard_subscriber_ = nh.subscribe("Gui/VectorLocalization/GuiKeyboardEvents", 1, KeyboardEventCallback);
   display_publisher_ = nh.advertise<gui_msgs::LidarDisplayMsg>("Gui/VectorLocalization/Gui", 1, true);
 
