@@ -40,7 +40,8 @@ vector<vector<float>> all_scans_;
 
 int current_view_ = 1;
 vector<int> id_in_progress_;
-
+bool viewing_recreation_ = false;
+bool normalized_ = false;
 
 float min_range = 0.0;    // meters
 float max_range = 10.0;   // meters
@@ -99,10 +100,21 @@ void pubScanFeature() {
 
 void pubScan() {
   //TODO: figure out why there is lag / weird behavior in the scan display
+  //TODO: harden logic / parameter setting for whether or not recreated scans are normalized
   std::cout << "scan number: " << current_view_ << std::endl;
   display_message_.points_x.clear();
   display_message_.points_y.clear();
   vector<float> scan = all_scans_[current_view_ - 1];
+
+  if (viewing_recreation_) {
+    if (normalized_) {
+      angular_res = 360.0 / float(scan.size());
+    }
+    else {
+      angular_res = 270.0 / float(scan.size());
+    }
+  }
+
   float start_angle = -135.0;
   for (size_t i = 0; i < scan.size(); ++i) {
     float angle = (start_angle + angular_res * i) * (M_PI / 180.0);
@@ -342,6 +354,22 @@ void getScansFromTxt() {
   }
 }
 
+void getDownsampledScansFromTxt() {
+  std::string line;
+  std::ifstream infile("recreations.txt");
+
+  while (std::getline(infile, line)) {
+    std::istringstream iss(line);
+    float value;
+    vector<float> single_scan;
+    while (iss >> value) {
+      single_scan.push_back(value);
+    }
+    all_scans_.push_back(single_scan);
+  }
+  viewing_recreation_ = true;
+}
+
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     std::cout << "Need bag name..." << std::endl;
@@ -350,6 +378,7 @@ int main(int argc, char* argv[]) {
   bag_name_ = argv[1];
   getScansFromBag();
   //getScansFromTxt();
+  //getDownsampledScansFromTxt();
 
   ros::init(argc, argv, "scanalyzer");
   ros::NodeHandle nh;
