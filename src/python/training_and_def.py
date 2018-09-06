@@ -8,6 +8,9 @@ Created on Tue Mar  6 17:35:43 2018
 
 """
 
+#TODO: refactor into separate files for each network, and
+#      separate files for nominal training versus special cases / debugging
+
 from __future__ import print_function
 
 import os
@@ -41,7 +44,7 @@ from torchvision import datasets, transforms
 # hyperparameters (learning rate, biases, initialization)
 # activation function (ReLU, tanh, sigmoid, etc.)
 # training example selection (selection of pairs, shuffling, presentation order, etc.)
-# loss function parameters
+# loss function (L-2 norm, cosine distance, etc.)
 # 
 
 #TODO: improve training data selection
@@ -273,12 +276,23 @@ class Net3(nn.Module): #NOTE:
 
     return emb, x
 
+"""
+  def forward(self, emb):
+    x = F.relu(self.fc3(emb))
+    x = F.relu(self.fc4(x))
+    x = self.fc5(x)
+
+    return x
+"""
+
   def num_flat_features(self, x):
     size = x.size()[1:]  # all dimensions except the batch dimension
     num_features = 1
     for s in size:
       num_features *= s
     return num_features
+
+############################## TRIPLET NET ##############################
 
 class TripletNet(nn.Module):
   def __init__(self, embeddingnet):
@@ -309,11 +323,18 @@ class TripletNet(nn.Module):
     embedded_z, recreated_z = self.embeddingnet(zn, zr)
     #dist_a = F.pairwise_distance(embedded_x, embedded_y, 2) # L-2 norm
     #dist_b = F.pairwise_distance(embedded_x, embedded_z, 2) # L-2 norm
-    target_a = torch.FloatTensor(1).fill_(1)
-    target_b = torch.FloatTensor(1).fill_(1)
+#    thMarget_a = torch.FloatTensor(1).fill_(1)
+#    target_b = torch.FloatTensor(1).fill_(1)
     dist_a = F.cosine_similarity(embedded_x, embedded_y) # cosine distance
     dist_b = F.cosine_similarity(embedded_x, embedded_z) # cosine distance
     return dist_a, dist_b, embedded_x, embedded_y, embedded_z, recreated_x
+
+"""
+  def forward(self, emb):
+    recreation = self.embeddingnet(emb)
+"""
+
+############################## STATISTICS ##############################
 
 class AverageMeter(object):
   # Computes and stores the average and current value
@@ -332,6 +353,8 @@ class AverageMeter(object):
     self.count += n
     self.avg = self.sum / self.count
 
+############################## VISUALIZATION ##############################
+
 class VisdomLinePlotter(object):
   # Plots to Visdom
   def __init__(self, env_name='main'):
@@ -348,6 +371,58 @@ class VisdomLinePlotter(object):
       ))
     else:
       self.viz.updateTrace(X=np.array([x]), Y=np.array([y]), env=self.env, win=self.plots[var_name], name=split_name)
+
+def visEmbeddingDecoder():
+  embeddings = []
+  infile = open('embeddings.txt', 'r')
+  for line in infile:
+    embedding_list = line.split()
+    embedding = np.array(scan_list)
+    embeddings.append(embedding)
+
+
+  #TODO: interpolate embeddings
+
+
+  model = Net3()
+  model = model.cuda()
+  tnet = TripletNet(model)
+  tnet = tnet.cuda()
+
+  resume = False
+  checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
+
+  # optionally resume from a checkpoint
+  if resume:
+    if os.path.isfile(checkpoint_to_load):
+      print("=> loading checkpoint '{}'".format(checkpoint_to_load))
+      checkpoint = torch.load(checkpoint_to_load)
+      start_epoch = checkpoint['epoch']
+      best_acc = checkpoint['best_acc']
+      tnet.load_state_dict(checkpoint['state_dict'])
+      print("=> loaded checkpoint '{}' (epoch {})"
+              .format(checkpoint_to_load, checkpoint['epoch']))
+    else:
+      print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
+
+  n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
+  print('  + Number of params: {}'.format(n_parameters))
+
+  recreations = []
+  for emb in embeddings:
+    # turn training off
+    tnet.eval()
+    recreation = tnet(emb)
+    recreations.append(recreation)
+
+  outfile = open('recreations.txt', 'a')
+  for recreation in recreations:
+    for obs in recreation:
+      outfile.write(obs)
+      outfile.write(" ")
+    outfile.write("\n")
+
+  outfile.close();
 
 ######################### ONE #########################
 
@@ -519,7 +594,7 @@ def test2(test_loader, tnet, criterion, epoch):
     # measure accuracy and record loss
     acc = accuracy(dista, distb)
     accs.update(acc, data1r.size(0))
-    losses.update(test_loss, data1r.size(0))      
+    losses.update(test_loss, data1r.size(0))
 
   print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
       losses.avg, 100. * accs.avg))
@@ -640,6 +715,7 @@ def save_checkpoint(state, is_best, filename):
   if is_best:
     shutil.copyfile(filename, directory + 'model_best.pth.tar')
 
+############################## MAIN ##############################
 
 def main():
   global plotter 
@@ -682,8 +758,8 @@ def main():
 
   #criterion = torch.nn.MarginRankingLoss(margin=margin)
   #NOTE: For net 3
-  criterion1 = torch.nn.MarginRankingLoss(margin=margin)
-  #criterion1 = torch.nn.CosineEmbeddingLoss(margin=margin)
+  #criterion1 = torch.nn.MarginRankingLoss(margin=margin)
+  criterion1 = torch.nn.CosineEmbeddingLoss(margin=margin)
   criterion2 = torch.nn.PairwiseDistance(p=2)
   optimizer = optim.SGD(tnet.parameters(), lr=learning_rate, momentum=momentum)
 
