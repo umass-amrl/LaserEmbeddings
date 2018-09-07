@@ -357,6 +357,7 @@ def main():
     else:
         print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
         return
+
     ##############################
 
     #NOTE: Computing variance of Embeddings for Static Scenes

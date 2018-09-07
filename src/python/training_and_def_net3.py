@@ -115,7 +115,7 @@ class TripletNet(nn.Module):
     embedded_z, recreated_z = self.embeddingnet(zn, zr)
     #dist_a = F.pairwise_distance(embedded_x, embedded_y, 2) # L-2 norm
     #dist_b = F.pairwise_distance(embedded_x, embedded_z, 2) # L-2 norm
-#    thMarget_a = torch.FloatTensor(1).fill_(1)
+#    target_a = torch.FloatTensor(1).fill_(1)
 #    target_b = torch.FloatTensor(1).fill_(1)
     dist_a = F.cosine_similarity(embedded_x, embedded_y) # cosine distance
     dist_b = F.cosine_similarity(embedded_x, embedded_z) # cosine distance

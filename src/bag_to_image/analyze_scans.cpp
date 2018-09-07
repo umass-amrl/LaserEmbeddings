@@ -40,8 +40,8 @@ vector<vector<float>> all_scans_;
 
 int current_view_ = 1;
 vector<int> id_in_progress_;
-bool viewing_recreation_ = false;
-bool normalized_ = false;
+bool viewing_recreation_ = true;
+bool normalized_ = true;
 
 float min_range = 0.0;    // meters
 float max_range = 10.0;   // meters

@@ -3849,9 +3849,9 @@ def SpecialTestSet():
   #bdsl_test = [["UST-10LX/static_scenes/", "2018-04-08-15-35-28", 10354]]
   #bdsl_test = [["UST-10LX/static_scenes/", "2018-04-08-15-41-41", 4861]]
   #bdsl_test = [["UST-10LX/static_scenes/", "2018-04-08-15-59-33", 7867]]
-  laser_dataset_test = LaserDataset('../../laser_images/full_normalized/', bdsl_test, transform=transform)
 
   #bdsl_test = [["UST-10LX/", "hand_picked", 10]]
+  laser_dataset_test = LaserDataset('../../laser_images/full_normalized/', bdsl_test, transform=transform)
 
   return laser_dataset_test
   

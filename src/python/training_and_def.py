@@ -113,8 +113,7 @@ class Net3(nn.Module): #NOTE:
     self.fc5 = nn.Linear(128, 256)
 
   def forward(self, emb):
-    x = F.relu(self.fc3(emb))
-    x = F.relu(self.fc4(x))
+    x = F.relu(self.fc4(emb))
     x = self.fc5(x)
 
     return x
@@ -135,6 +134,7 @@ class TripletNet(nn.Module):
 
   def forward(self, emb):
     recreation = self.embeddingnet(emb)
+    return recreation
 
 ############################## VISUALIZATION ##############################
 
@@ -160,7 +160,7 @@ def visEmbeddingDecoder():
   infile = open('embeddings.txt', 'r')
   for line in infile:
     embedding_list = line.split()
-    embedding = np.array(scan_list)
+    embedding = np.array(embedding_list, dtype=np.float32)
     embeddings.append(embedding)
 
 
@@ -172,7 +172,7 @@ def visEmbeddingDecoder():
   tnet = TripletNet(model)
   tnet = tnet.cuda()
 
-  resume = False
+  resume = True
   checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
 
   # optionally resume from a checkpoint
@@ -193,13 +193,18 @@ def visEmbeddingDecoder():
   for emb in embeddings:
     # turn training off
     tnet.eval()
+    emb = Variable(torch.from_numpy(emb))
+    emb = emb.cuda()
     recreation = tnet(emb)
     recreations.append(recreation)
 
   outfile = open('recreations.txt', 'a')
-  for recreation in recreations:
-    for obs in recreation:
-      outfile.write(obs)
+  for i in range(len(recreations)):
+    recreation = recreations[i]
+    recreation = recreation.cpu()
+    recreation = recreation.data.numpy().tolist()
+    for i in range(len(recreation)):
+      outfile.write(str(recreation[i]))
       outfile.write(" ")
     outfile.write("\n")
 
@@ -207,13 +212,24 @@ def visEmbeddingDecoder():
 
 ######################### GENERATE EMBEDDINGS #########################
 
-def generateEmbeddings(test_loader, tnet):
+def generateEmbeddings(test_set, tnet):
 
   outfile = open('embeddings.txt', 'a')
 
   # switch to evaluation mode
   tnet.eval()
-  for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(test_loader):
+
+  data_id = 0
+
+  #for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(test_loader):
+  test_set_len = len(test_set)
+  #for idx in range(test_set_len):
+  for idx in range(5):
+
+    data1n, data1r = test_set.getSpecificItem(idx)
+    data2n, data2r = test_set.getSpecificItem(0)
+    data3n, data3r = test_set.getSpecificItem(0)
+
     data1n, data2n, data3n = Variable(data1n), Variable(data2n), Variable(data3n)
     data1r, data2r, data3r = Variable(data1r), Variable(data2r), Variable(data3r)
     data1n = data1n.cuda()
@@ -228,10 +244,16 @@ def generateEmbeddings(test_loader, tnet):
     _, _, embedded_1, _, _, _ = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
 
     # write embeddings to text file
-    for i in range(len(embedded_1)):
-      outfile.write(embedded_1[i])
-      outfile.write(" ")
-    outfile.write("\n")
+    if data_id % 300 == 0:
+      embedded_1 = embedded_1.cpu()
+      embedded_1 = embedded_1.data.numpy().tolist()
+      embedded_1 = embedded_1[0]
+      for i in range(len(embedded_1)):
+        outfile.write(str(embedded_1[i]))
+        outfile.write(" ")
+      outfile.write("\n")
+
+    data_id = data_id + 1
 
   outfile.close();
 
@@ -240,7 +262,8 @@ def generateEmbeddings(test_loader, tnet):
 def main():
 
   # load dataset
-  train_loader, test_loader = cptn.CurateTrainTest()
+  #train_loader, test_loader = cptn.CurateTrainTest()
+  test_set = cptn.SpecialTestSet()
 
   model = net3.Net3()
   model = model.cuda()
@@ -265,7 +288,7 @@ def main():
   print('  + Number of params: {}'.format(n_parameters))
 
   # run dataset through network to get embeddings
-  generateEmbeddings(test_loader, tnet)
+  generateEmbeddings(test_set, tnet)
 
   # generate interpolated embeddings and save recreated scans from autoencoder
   visEmbeddingDecoder()
