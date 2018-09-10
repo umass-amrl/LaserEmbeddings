@@ -356,14 +356,15 @@ void getScansFromTxt() {
 
 void getDownsampledScansFromTxt() {
   std::string line;
-  std::ifstream infile("recreations.txt");
+  std::ifstream infile("src/python/recreations.txt");
 
   while (std::getline(infile, line)) {
     std::istringstream iss(line);
     float value;
     vector<float> single_scan;
     while (iss >> value) {
-      single_scan.push_back(value);
+      // Assumes 0.0 <= 'value' <= 1.0
+      single_scan.push_back(max_range * value);
     }
     all_scans_.push_back(single_scan);
   }
@@ -376,9 +377,9 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   bag_name_ = argv[1];
-  getScansFromBag();
+  //getScansFromBag();
   //getScansFromTxt();
-  //getDownsampledScansFromTxt();
+  getDownsampledScansFromTxt();
 
   ros::init(argc, argv, "scanalyzer");
   ros::NodeHandle nh;

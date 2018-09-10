@@ -163,9 +163,13 @@ def visEmbeddingDecoder():
     embedding = np.array(embedding_list, dtype=np.float32)
     embeddings.append(embedding)
 
-
-  #TODO: interpolate embeddings
-
+  k = 10
+  interpolated_embeddings = []
+  for i in range(len(embeddings)-1):
+    embedding_diff = embeddings[i+1] - embeddings[i]
+    for j in range(k):
+      interpolated_embeddings.append(embeddings[i] + float(j)/float(k) * embedding_diff)
+  interpolated_embeddings.append(embeddings[-1])
 
   model = Net3()
   model = model.cuda()
@@ -190,7 +194,7 @@ def visEmbeddingDecoder():
   print('  + Number of params: {}'.format(n_parameters))
 
   recreations = []
-  for emb in embeddings:
+  for emb in interpolated_embeddings:
     # turn training off
     tnet.eval()
     emb = Variable(torch.from_numpy(emb))
@@ -223,8 +227,7 @@ def generateEmbeddings(test_set, tnet):
 
   #for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(test_loader):
   test_set_len = len(test_set)
-  #for idx in range(test_set_len):
-  for idx in range(5):
+  for idx in range(0, test_set_len, 300):
 
     data1n, data1r = test_set.getSpecificItem(idx)
     data2n, data2r = test_set.getSpecificItem(0)
@@ -244,7 +247,8 @@ def generateEmbeddings(test_set, tnet):
     _, _, embedded_1, _, _, _ = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
 
     # write embeddings to text file
-    if data_id % 300 == 0:
+#    if data_id % 300 == 0:
+    if True:
       embedded_1 = embedded_1.cpu()
       embedded_1 = embedded_1.data.numpy().tolist()
       embedded_1 = embedded_1[0]
