@@ -1,10 +1,14 @@
 #!/bin/bash
 
-source_dir='bagData/URG-04LX/'
-target_dir='laser_images/full_normalized/URG-04LX/'
-yr_mn=$1
-full_source_dir=${source_dir}${1}
-full_target_dir=${target_dir}${1}
+#source_dir='bagData/URG-04LX/'
+#target_dir='laser_images/full_normalized/URG-04LX/'
+source_dir='bagData/UST-10LX/big_map'
+target_dir='laser_images/full_normalized/UST-10LX/Corrupted_Blur'
+#yr_mn=$1
+#full_source_dir=${source_dir}${1}
+#full_target_dir=${target_dir}${1}
+full_source_dir=${source_dir}
+full_target_dir=${target_dir}
 
 for entry in `ls $full_source_dir`; do
     base=${entry%.*}
@@ -12,8 +16,8 @@ for entry in `ls $full_source_dir`; do
     #echo $new_dir
     mkdir -p $new_dir
     cd $new_dir
-    #~/synthesis/LaserEmbeddings/bin/BagToImages "../../../../../${source_dir}/${entry}" 270 10
-    ~/synthesis/LaserEmbeddings/bin/BagToImages "../../../../../${full_source_dir}/${entry}" 240 4
+    #~/synthesis/LaserEmbeddings/bin/BagToImages "../../../../../${full_source_dir}/${entry}" 240 4
+    ~/synthesis/LaserEmbeddings/bin/BagToImages "../../../../../${source_dir}/${entry}" 270 10
     cd ../../../../../
 done
 

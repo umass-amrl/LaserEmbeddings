@@ -25,9 +25,11 @@ import torch.nn.functional as F
 import convert_png_to_numpy as cptn
 import torch.backends.cudnn as cudnn
 
+from scipy import spatial
 from visdom import Visdom
 from torch.autograd import Variable
 from torchvision import datasets, transforms
+from sklearn.decomposition import PCA, KernelPCA
 
 import training_and_def_net3 as net3
 
@@ -216,22 +218,44 @@ def visEmbeddingDecoder():
 
 ######################### GENERATE EMBEDDINGS #########################
 
+def writeEmbeddings(embeddings):
+  outfile = open('embeddings.txt', 'a')
+  for i in range(len(embeddings)):
+    for j in range(len(embeddings[i])):
+      outfile.write(str(embeddings[i][j]))
+      outfile.write(" ")
+    outfile.write("\n")
+  outfile.close();
+
 def generateEmbeddings(test_set, tnet):
 
-  outfile = open('embeddings.txt', 'a')
+  
+  #rawoutfile = open('scansasimages.txt', 'a')
 
   # switch to evaluation mode
   tnet.eval()
 
-  data_id = 0
-
+  embeddings = []
+  #data_id = 0
   #for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(test_loader):
-  test_set_len = len(test_set)
-  for idx in range(0, test_set_len, 300):
+  #test_set_len = len(test_set)
+  #for idx in range(0, test_set_len, 300):
+  for idx in range(len(test_set)):
+
+    if idx % 100 == 0:
+      print(str(idx)+"/"+str(len(test_set)))
 
     data1n, data1r = test_set.getSpecificItem(idx)
     data2n, data2r = test_set.getSpecificItem(0)
     data3n, data3r = test_set.getSpecificItem(0)
+    
+    #print("scan in image form \n")
+    #print(data1n[0, 0, 0, :].tolist())
+    #rawscanimg = data1n[0, 0, 0, :].tolist()
+    #for i in range(len(data1n[0, 0, 0, :].tolist())):
+    #  rawoutfile.write(str(rawscanimg[i]))
+    #  rawoutfile.write(" ")
+    #rawoutfile.write("\n")
 
     data1n, data2n, data3n = Variable(data1n), Variable(data2n), Variable(data3n)
     data1r, data2r, data3r = Variable(data1r), Variable(data2r), Variable(data3r)
@@ -247,27 +271,100 @@ def generateEmbeddings(test_set, tnet):
     _, _, embedded_1, _, _, _ = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
 
     # write embeddings to text file
-#    if data_id % 300 == 0:
-    if True:
-      embedded_1 = embedded_1.cpu()
-      embedded_1 = embedded_1.data.numpy().tolist()
-      embedded_1 = embedded_1[0]
-      for i in range(len(embedded_1)):
-        outfile.write(str(embedded_1[i]))
-        outfile.write(" ")
-      outfile.write("\n")
+    embedded_1 = embedded_1.cpu()
+    embedded_1 = embedded_1.data.numpy().tolist()
+    embedded_1 = embedded_1[0]
+    embeddings.append(embedded_1)
 
-    data_id = data_id + 1
+  return embeddings
 
-  outfile.close();
+############################## DISTANCE ##############################
+
+def computeSubspaceDistance(a, b, basis_vectors, weights):
+  diff = a - b
+  subspace_distance = 0
+  for i in range(len(weights)):
+    new_dist = abs(np.dot(diff, basis_vectors[i, :]) / np.linalg.norm(basis_vectors[i, :]))
+    subspace_distance = subspace_distance + weights[i] * new_dist
+  return subspace_distance
+
+############################## TOP K ##############################
+
+def KNNOnEmbeddings(database, queries):
+    K = 10
+
+    query_results = []
+    for idx in range(len(queries)):
+      print(idx)
+      x = queries[idx]
+      query_result = []
+      for idt in range(len(database)):
+        if idt % 1000 == 0:
+          print(str(idt)+"/"+str(len(database)))
+        y = database[idt]
+        y = np.asarray(y)
+        dissimilarity = spatial.distance.cosine(y, x)
+        #dissimilarity = np.linalg.norm(y - x)
+        single_scan = []
+        if len(query_result) < K:
+          single_scan.append(idt)
+          single_scan.append(dissimilarity)
+          query_result.append(single_scan)
+        else:
+          if dissimilarity < query_result[0][1]:
+            single_scan.append(idt)
+            single_scan.append(dissimilarity)
+            query_result[0] = single_scan
+            # reverse sort based on similarity
+            query_result.sort(key = lambda k: (k[1]), reverse=True)
+
+      query_results.append(query_result)
+
+    return query_results
+
+def SubspaceKNNOnEmbeddings(database, queries, basis_vectors, weights):
+    K = 10
+
+    query_results = []
+    for idx in range(len(queries)):
+      print(idx)
+      x = queries[idx]
+      query_result = []
+      for idt in range(len(database)):
+        if idt % 1000 == 0:
+          print(idt)
+        y = database[idt]
+        y = np.asarray(y)
+        dissimilarity = computeSubspaceDistance(x, y, basis_vectors, weights)
+        single_scan = []
+        if len(query_result) < K:
+          single_scan.append(idt)
+          single_scan.append(dissimilarity)
+          query_result.append(single_scan)
+        else:
+          if dissimilarity < query_result[0][1]:
+            single_scan.append(idt)
+            single_scan.append(dissimilarity)
+            query_result[0] = single_scan
+            # reverse sort based on similarity
+            query_result.sort(key = lambda k: (k[1]), reverse=True)
+
+      query_results.append(query_result)
+
+    return query_results
 
 ############################## MAIN ##############################
 
 def main():
 
+
+  #TODO: currently only supports querying for one feature at a time
   # load dataset
   #train_loader, test_loader = cptn.CurateTrainTest()
-  test_set = cptn.SpecialTestSet()
+  #test_set = cptn.SpecialTestSet()
+  #query_set = cptn.FeatureOnlyTestSet()
+  query_set = cptn.MonteCarloTestSet()
+  database_set = cptn.SpecialQuerySet()
 
   model = net3.Net3()
   model = model.cuda()
@@ -291,11 +388,57 @@ def main():
   n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
   print('  + Number of params: {}'.format(n_parameters))
 
+  print("getting database of embeddings")
   # run dataset through network to get embeddings
-  generateEmbeddings(test_set, tnet)
+  query_embeddings = generateEmbeddings(query_set, tnet)
+  database_embeddings = generateEmbeddings(database_set, tnet)
+  #writeEmbeddings(embeddings)
+
+  print("finding query mean")
+  print(len(query_embeddings))
+  print(len(query_embeddings[0]))
+
+  npqueryembed = np.zeros((len(query_embeddings), len(query_embeddings[0])))
+
+  final_query_embeddings = []
+  embedding_sum = np.zeros(len(query_embeddings[0]))
+  print("number of embedding examples: "+str(len(query_embeddings)))
+  for i in range(len(query_embeddings)):
+    embedding_sum = embedding_sum + np.asarray(query_embeddings[i])
+    npqueryembed[i, :] = np.asarray(query_embeddings[i])
+  embedding_mean = np.true_divide(embedding_sum, len(query_embeddings))
+  final_query_embeddings.append(embedding_mean)
+
+
+  kappa = 5
+  #basis_vectors = np.zeros((len(final_query_embeddings[0]), 5))
+  basis_vectors = np.zeros((5, len(final_query_embeddings[0])))
+  weights = np.ones(kappa)
+  #TODO: use xplained variance to weight each dimension in subspace distance calculation?
+  #weights = np.zeros(kappa)
+  if len(query_embeddings) > 1:
+    print("PCA")
+    pca = PCA()
+    pca.fit(npqueryembed)
+    components = pca.components_
+    print(components)
+    print(components.shape)
+    for i in range(kappa):
+      basis_vectors[i, :] = components[len(final_query_embeddings[0]) - 1 - i, :]
+
+  print("KNN")
+
+  #query_results = KNNOnEmbeddings(database_embeddings, final_query_embeddings)
+  query_results = SubspaceKNNOnEmbeddings(database_embeddings, final_query_embeddings, basis_vectors, weights)
+
+  for i in range(len(query_results)):
+    print("QUERY: "+str(i))
+    for j in range(len(query_results[i])):
+      print(query_results[i][j])
+
 
   # generate interpolated embeddings and save recreated scans from autoencoder
-  visEmbeddingDecoder()
+  #visEmbeddingDecoder()
 
 if __name__ == '__main__':
   main()

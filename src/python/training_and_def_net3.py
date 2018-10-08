@@ -190,13 +190,19 @@ def train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch):
     target1 = target1.cuda()
 
     loss_triplet = criterion1(dista, distb, target1)
-    loss_reconstruction = torch.mean(criterion2(ds_scan, reconstruction))
+    #print("triplet loss: ")
+    #print(loss_triplet)
+    #loss_reconstruction = torch.mean(criterion2(ds_scan, reconstruction))
+    loss_reconstruction = torch.max(criterion2(ds_scan, reconstruction))
+    #loss_reconstruction = torch.min(criterion2(ds_scan, reconstruction))
+    #print("recon loss: ")
+    #print(loss_reconstruction)
     loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
-    loss = loss_triplet + loss_reconstruction + 0.001 * loss_embedd
+    loss = 10.0 * loss_triplet + loss_reconstruction + 0.001 * loss_embedd
 
     # measure accuracy and record loss
     acc = accuracy(dista, distb)
-    losses.update(loss_triplet.data[0], data1n.size(0))
+    losses.update(loss.data[0], data1n.size(0))
     accs.update(acc, data1n.size(0))
     emb_norms.update(loss_embedd.data[0]/3, data1n.size(0))
 
@@ -278,7 +284,13 @@ def main():
   global plotter 
   plotter = VisdomLinePlotter(env_name="plooter")
 
-  train_loader, test_loader = cptn.CurateTrainTest()
+  laser_dataset_train, laser_dataset_test = cptn.CurateTrainTest()
+  train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=16, shuffle=True)
+  test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
+
+  corrupt_train_loader = cptn.CorruptedSets(laser_dataset_train)
+
+  #TODO: integrate corrupt train loader into training process
 
   model = Net3()
   model = model.cuda()
@@ -312,8 +324,8 @@ def main():
   epochs = 10
 
   #NOTE: For net 3
-  #criterion1 = torch.nn.MarginRankingLoss(margin=margin)
-  criterion1 = torch.nn.CosineEmbeddingLoss(margin=margin)
+  criterion1 = torch.nn.MarginRankingLoss(margin=margin)
+  #criterion1 = torch.nn.CosineEmbeddingLoss(margin=margin)
   criterion2 = torch.nn.PairwiseDistance(p=2)
   optimizer = optim.SGD(tnet.parameters(), lr=learning_rate, momentum=momentum)
 
@@ -322,6 +334,7 @@ def main():
 
   for epoch in range(start_epoch, epochs + 1):
     # train for one epoch
+    train3(corrupt_train_loader, tnet, criterion1, criterion2, optimizer, epoch)
     train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch)
     
     # evaluate on validation set

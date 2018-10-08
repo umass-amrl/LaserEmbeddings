@@ -13,9 +13,13 @@
 #include "sensor_msgs/LaserScan.h"
 #include "../perception_tools/perception_2d.h"
 #include <CImg.h>
+#include "shared_structs.h"
 
 using std::string;
 using std::vector;
+
+//TODO: max laser range needs to be set in a single place and used with a single
+//name. Currently, there are two ways of setting / using max range
 
 unsigned int clip_l = 0;
 unsigned int clip_u = 0;
@@ -97,6 +101,52 @@ void getScansFromBag(const float laser_max_range,
   //printf("%d scans loaded.\n", static_cast<int>(all_scans->size()));
 }
 
+vector<ScanFeatureMetaData> getFeaturesFromText(string filename) {
+  std::string line;
+  std::ifstream infile(filename);
+
+  vector<ScanFeatureMetaData> all_features;
+
+  while (std::getline(infile, line)) {
+    std::istringstream iss(line);
+    ScanFeatureMetaData scan_feature;
+
+    //bag name, scan number, type, start angle, end angle, range[i], ..., range[j]
+
+    
+    string bag_name;
+    iss >> bag_name;
+    int scan_number;
+    iss >> scan_number;
+    int feature_type;
+    iss >> feature_type;
+    float start_angle;
+    iss >> start_angle;
+    float end_angle;
+    iss >> end_angle;
+
+    scan_feature.start_angle = start_angle;
+    scan_feature.end_angle = end_angle;
+    scan_feature.type = feature_type;
+
+    float value;
+    vector<float> ranges;
+    while (iss >> value) {
+      ranges.push_back(value);
+    }
+
+    scan_feature.ranges = ranges;
+
+    std::cout << bag_name << " " << scan_number << " " << feature_type << " " 
+              << start_angle << " " << end_angle << std::endl;
+    // have scan feature, now generate many
+
+    all_features.push_back(scan_feature);
+  }
+  return all_features;
+}
+
+
 /*
 void convertScansToImages(const vector<vector<float>>& all_scans) {
   std::stringstream ss;
@@ -151,6 +201,67 @@ void convertScansToImages(const vector<vector<float>>& all_scans) {
 }
 */
 
+void generateFeatureOnlyScanFromFeatures(const float FOV, const vector<ScanFeatureMetaData> all_features, 
+                                                                   vector<vector<float>>* all_scans) {
+  //for // each feature // (only one feature at a time for now)
+  int num_rays = (all_features[0].ranges.size() * FOV) / 
+                 ((all_features[0].end_angle - all_features[0].start_angle) * (180.0 / M_PI));
+  float angular_res = FOV / float(num_rays);
+  float scan_start_angle = -FOV / 2.0;
+  int feature_start_index = (scan_start_angle - all_features[0].start_angle) * angular_res;
+  int feature_end_index = feature_start_index + all_features[0].ranges.size();
+  std::cout << "num rays: " << num_rays << std::endl;
+  std::cout << "start: " << feature_start_index << std::endl;
+  std::cout << "end: " << feature_end_index << std::endl;
+  // Probably should be a feature that can be enabled by the type of query
+  // (eg. anywhere in the scan vs. on the left side)
+  //TODO: generate random location within the scan (optional, not doing right now)
+  vector<float> single_scan;
+  for (int i = 0; i < num_rays; ++i) { // each ray
+    if (i >= feature_start_index && i <= feature_end_index) {
+      single_scan.push_back(all_features[0].ranges[i - feature_start_index]);
+    }
+    else {
+      // Set all depths to zero if not part of feature
+      single_scan.push_back(0.0);
+    }
+  }
+  all_scans->push_back(single_scan);
+}
+
+void generateMonteCarloScansFromFeatures(const float FOV, const vector<ScanFeatureMetaData> all_features, 
+                                                                   vector<vector<float>>* all_scans) {
+  //for // each feature // (only one feature at a time for now)
+  int num_rays = (all_features[0].ranges.size() * FOV) / 
+                 ((all_features[0].end_angle - all_features[0].start_angle) * (180.0 / M_PI));
+  float angular_res = FOV / float(num_rays);
+  float scan_start_angle = -FOV / 2.0;
+  int feature_start_index = (scan_start_angle - all_features[0].start_angle) * angular_res;
+  int feature_end_index = feature_start_index + all_features[0].ranges.size();
+  int K = 1000;
+  std::cout << "num rays: " << num_rays << std::endl;
+  std::cout << "start: " << feature_start_index << std::endl;
+  std::cout << "end: " << feature_end_index << std::endl;
+  for (int k = 0; k < K; ++k) { // K times
+   std::cout << k << std::endl;
+   // Probably should be a feature that can be enabled by the type of query
+    // (eg. anywhere in the scan vs. on the left side)
+    //TODO: generate random location within the scan (optional, not doing right now)
+    vector<float> single_scan;
+    for (int i = 0; i < num_rays; ++i) { // each ray
+      if (i >= feature_start_index && i <= feature_end_index) {
+        single_scan.push_back(all_features[0].ranges[i - feature_start_index]);
+      }
+      else {
+        // Sample depth from uniform distribution over laser range
+        const float depth = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/max_range));
+        single_scan.push_back(depth);
+      }
+    }
+    all_scans->push_back(single_scan);
+  }
+}
+
 void applyTruncate(const float new_max_range, vector<vector<float>>* all_scans) {
   for (size_t i = 0; i < all_scans->size(); ++i) {
     for (size_t j = 0; j < all_scans[0][i].size(); ++j) {
@@ -174,15 +285,15 @@ void applySeasoning(const float amount, vector<vector<float>>* all_scans) {
 }
 
 void applyBlur(const float haze, vector<vector<float>>* all_scans) {
+  std::default_random_engine generator;
+  std::normal_distribution<float> distribution(0.0, haze);
   for (size_t i = 0; i < all_scans->size(); ++i) {
     for (size_t j = 0; j < all_scans[0][i].size(); ++j) {
-      //TODO: sample gaussian
-      //TODO: make sure its within (0, max_range)
-      //float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-      //if (r <= amount) {
-      //  const float seasoned_obs = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/max_range));
-      //  all_scans[0][i][j] = seasoned_obs;
-      //}
+      float r = distribution(generator);
+      float blurred_obs = all_scans[0][i][j] + r;
+      blurred_obs = fmin(blurred_obs, max_range);
+      blurred_obs = fmax(blurred_obs, min_range);
+      all_scans[0][i][j] = blurred_obs;
     }
   }
 }
@@ -276,9 +387,11 @@ void applyHumans(const int FOV, vector<vector<float>>* all_scans) {
 
 void writeScans(vector<vector<float>>* all_scans) {
   std::ofstream outfile;
+  //outfile.open("FeatureScans.txt", std::ios_base::app);
   //outfile.open("CorruptionQuality.txt", std::ios_base::app);
-  outfile.open("RawScans.txt", std::ios_base::app);
+  //outfile.open("RawScans.txt", std::ios_base::app);
   for (size_t i = 0; i < all_scans->size(); ++i) {
+    std::cout << "scan size: " << all_scans[0][i].size() << std::endl;
     for (size_t j = 0; j < all_scans[0][i].size(); ++j) {
       outfile << all_scans[0][i][j] << " ";
     }
@@ -297,7 +410,7 @@ void applyCorruption(const float FOV,
     applyHumans(FOV, all_scans);
   }
   if (blur) {
-    float haze = 0.04; // meters
+    float haze = 0.1; // meters
     applyBlur(haze, all_scans);
   }
   if (seasoning) {
@@ -310,7 +423,6 @@ void applyCorruption(const float FOV,
   }
   //writeScans(all_scans);
 }
-
 
 void convertScansToImagesPadAndFixedBounds(const vector<vector<float>>& all_scans,
                                            const int FOV) {
@@ -329,6 +441,10 @@ void convertScansToImagesPadAndFixedBounds(const vector<vector<float>>& all_scan
     elems.push_back(item2);
   }
   string bag_date = elems[0];
+  if (bag_date == "txt") {
+    //bag_date = "FeatureOnly";
+    bag_date = "MCFeature";
+  }
   //std::cout << "bag_date: " << bag_date << std::endl;
   std::cout << bag_date << ", " << all_scans.size() << std::endl;
 
@@ -373,6 +489,8 @@ void convertScansToImagesPadAndFixedBounds(const vector<vector<float>>& all_scan
   cimg_library::CImg<uint8_t> scan_image_norm(width, height);
   size_t scan_number = 1;
 
+  std::ofstream outfile;
+  //outfile.open("downsampledscans.txt", std::ios_base::app);
   //printf("Downsampling scans..."); fflush(stdout);
   for (size_t i = 0; i < all_padded_scans.size(); ++i) {
     vector<float> padded_scan = all_padded_scans[i];
@@ -388,11 +506,13 @@ void convertScansToImagesPadAndFixedBounds(const vector<vector<float>>& all_scan
     }
 
     for (size_t y = 0; y < height; ++y) {
+      //outfile << size_t(255 - (downsampled_scan[y]/max_range)*255);
       for (size_t x = 0; x < downsampled_scan.size(); ++x) {
         scan_image_rot((x + y) % width, y) = size_t(255 - (downsampled_scan[x]/max_range)*255);
         scan_image_norm(x, y) = size_t(255 - (downsampled_scan[x]/max_range)*255);
       }
     }
+    //outfile << "\n";
     string rot_scan_image_file = bag_date + "_" + std::to_string(scan_number) + "_rot.png";
     string norm_scan_image_file = bag_date + "_" + std::to_string(scan_number) + "_norm.png";
     scan_image_rot.save_png(rot_scan_image_file.c_str());
@@ -403,29 +523,41 @@ void convertScansToImagesPadAndFixedBounds(const vector<vector<float>>& all_scan
 }
 
 int main(int argc, char* argv[]) {
-  if (argc != 4) {
-    printf("Usage: ./exec <bag file> <laser FoV (deg)> <max laser range (m)>");
+  if (argc < 4) {
+    printf("Usage: ./exec <bag file> <laser FoV (deg)> <max laser range (m)> (opt)<feature file>");
     fflush(stdout);
     exit(1);
   }
   bag_name = argv[1];
   int FOV = atoi(argv[2]); // Field of View of the laser
   float laser_max_range = atof(argv[3]);
-  bool truncate = false;
-  bool seasoning = false; // Add salt-and-pepper-type noise
-  bool blur = false;
-  bool humans = true;
-  //printf(argv[1]); printf("\n"); fflush(stdout);
-  //printf("%d \n", FOV); fflush(stdout);
-  //printf("%f \n", laser_max_range); fflush(stdout);
   vector<vector<float>> all_scans;
-  getScansFromBag(laser_max_range, &all_scans);
-  //NOTE: for baseline testing
-  //writeScans(&all_scans);
+  if (bag_name == "txt") {
+    string feature_filename = argv[4];
+    vector<ScanFeatureMetaData> all_features = getFeaturesFromText(feature_filename);
+    //generateFeatureOnlyScanFromFeatures(FOV, all_features, &all_scans);
+    generateMonteCarloScansFromFeatures(FOV, all_features, &all_scans);
+  }
+  else {
+    bool truncate = false;
+    bool seasoning = false; // Add salt-and-pepper-type noise
+    bool blur = false;
+    bool humans = false;
+    //printf(argv[1]); printf("\n"); fflush(stdout);
+    //printf("%d \n", FOV); fflush(stdout);
+    //printf("%f \n", laser_max_range); fflush(stdout);
+    
+    getScansFromBag(laser_max_range, &all_scans);
+    //NOTE: for baseline testing
+    ////writeScans(&all_scans);
   
-  srand (static_cast <unsigned> (time(0)));
-  applyCorruption(FOV, truncate, seasoning, blur, humans, &all_scans);
-  ////convertScansToImages(all_scans);
+    srand (static_cast <unsigned> (time(0)));
+    applyCorruption(FOV, truncate, seasoning, blur, humans, &all_scans);
+    ////convertScansToImages(all_scans);
+    ////writeScans(&all_scans);
+  }
+  std::cout << "size: " << all_scans.size() << std::endl;
+  //writeScans(&all_scans);
   convertScansToImagesPadAndFixedBounds(all_scans, FOV);
   return 0;
 }

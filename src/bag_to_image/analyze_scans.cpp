@@ -14,17 +14,12 @@
 #include "gui_msgs/GuiMouseClickEvent.h"
 #include "gui_msgs/LidarDisplayMsg.h"
 #include "../perception_tools/perception_2d.h"
+#include "shared_structs.h"
 
 using std::string;
 using std::vector;
 
-//TODO: enum this type?
-struct ScanFeatureMetaData {
-  vector<float> ranges;
-  float start_angle;
-  float end_angle;
-  int type; // human = 0, door = 1, corner = 2
-};
+//TODO: Set up to be run via scripts
 
 ScanFeatureMetaData scan_feature_;
 bool feature_selected_ = false;
@@ -41,7 +36,8 @@ vector<vector<float>> all_scans_;
 int current_view_ = 1;
 vector<int> id_in_progress_;
 bool viewing_recreation_ = true;
-bool normalized_ = true;
+bool normalized_ = false;
+//bool normalized_ = true;
 
 float min_range = 0.0;    // meters
 float max_range = 10.0;   // meters
@@ -133,16 +129,15 @@ void pubScan() {
 //}
 
 void saveScanFeature(string filename) {
-  //TODO: save feature stored in 'scan_feature_' to file 'filename'
   std::cout << "saving feature" << std::endl;
-  // bag_name_, current_view_-1, type, start_angle, end_angle, range[0], ..., range[n]
   std::ofstream outfile;
-
   outfile.open(filename, std::ios_base::app);
-  outfile << bag_name_ << ", " << current_view_ - 1 << ", " 
-          << scan_feature_.type << ", " << scan_feature_.start_angle << ", " << scan_feature_.end_angle;
+  
+  // bag_name_, current_view_-1, type, start_angle, end_angle, range[0], ..., range[n]
+  outfile << bag_name_ << " " << current_view_ - 1 << " " 
+          << scan_feature_.type << " " << scan_feature_.start_angle << " " << scan_feature_.end_angle;
   for (size_t i = 0; i < scan_feature_.ranges.size(); ++i) {
-    outfile << ", " << scan_feature_.ranges[i];
+    outfile << " " << scan_feature_.ranges[i];
   }
   outfile << "\n";
 }
@@ -335,39 +330,52 @@ void getScansFromTxt() {
     while (iss >> value) {
       single_scan.push_back(value);
     }
+    std::cout << "push back" << single_scan.size() << std::endl;
     all_scans_.push_back(single_scan);
   }
   vector<vector<float>> normal;
-  vector<vector<float>> personalized;
+  vector<vector<float>> corrupted;
   for (size_t i = 0; i < all_scans_.size(); ++i) {
     if (i < (all_scans_.size()/2)) {
       normal.push_back(all_scans_[i]);
     }
     else {
-      personalized.push_back(all_scans_[i]);
+      corrupted.push_back(all_scans_[i]);
     }
   }
   all_scans_.clear();
   for (size_t i = 0; i < normal.size(); ++i) {
     all_scans_.push_back(normal[i]);
-    all_scans_.push_back(personalized[i]);
+    all_scans_.push_back(corrupted[i]);
   }
 }
 
 void getDownsampledScansFromTxt() {
   std::string line;
   std::ifstream infile("src/python/recreations.txt");
+  //std::ifstream infile("src/python/scansasimages.txt");
+  //std::ifstream infile("downsampledscans.txt");
+
+  float maxin = 0.0;
 
   while (std::getline(infile, line)) {
     std::istringstream iss(line);
     float value;
     vector<float> single_scan;
     while (iss >> value) {
+      maxin = fmax(maxin, value);
+      // Assumes 0.0 <= 'value' <= 255.0
+      //value = value / 255.0;
+      //single_scan.push_back(max_range * (1.0 - value));
+      // Assumes -1.0 <= 'value' <= 1.0
+      value = (value * 0.5) + 0.5;
+      single_scan.push_back(max_range * (1.0 - value));
       // Assumes 0.0 <= 'value' <= 1.0
-      single_scan.push_back(max_range * value);
+      //single_scan.push_back(max_range * (1.0 - value));
     }
     all_scans_.push_back(single_scan);
   }
+  std::cout << "max input: " << maxin << std::endl;
   viewing_recreation_ = true;
 }
 
@@ -377,9 +385,10 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   bag_name_ = argv[1];
-  //getScansFromBag();
+  getScansFromBag();
   //getScansFromTxt();
-  getDownsampledScansFromTxt();
+  //getDownsampledScansFromTxt();
+  std::cout << "loaded" << std::endl;
 
   ros::init(argc, argv, "scanalyzer");
   ros::NodeHandle nh;
