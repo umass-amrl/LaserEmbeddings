@@ -1992,6 +1992,7 @@ class LaserDataset(Dataset):
       prev_seen = seen
 
     #print(file_base + file_mid + "norm.png")
+    #print(file_base + file_mid)
 
     sample_norm = self.PNGtoNPA(file_base + file_mid + "norm.png")
     sample_rot = self.PNGtoNPA(file_base + file_mid + "rot.png")
@@ -2029,37 +2030,36 @@ def LoadScansFromText(filename):
 
 def CurateTrainTest():
 
-
-
-
   to_tensor = transforms.ToTensor()
   normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
   transform = transforms.Compose([to_tensor, normalize])
 
+  #bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723],
+  #              ["UST-10LX/", "2016-04-17-20-34-16", 2332],
+  #              ["UST-10LX/", "2016-08-17-13-08-32", 2649],
+  #              ["UST-10LX/", "2016-08-17-13-16-56", 2832]]
+  
+  #bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723],
+  #              ["UST-10LX/", "2016-08-17-13-16-56", 2832]]
+  
+  bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723]]
 
-
-
-
-
-#  bdsl_train = [["UST-10LX/", "2016-08-17-12-48-06", 403]]
-
-
-  bdsl_train = [["UST-10LX/", "2016-08-17-12-48-06", 403], 
-                ["UST-10LX/", "2016-08-17-12-56-32", 544], 
-                ["UST-10LX/", "2016-08-17-12-57-16", 835],
-                ["UST-10LX/", "2016-08-17-12-57-54", 672],
-                ["UST-10LX/", "2016-08-17-12-58-32", 1191],
-                ["UST-10LX/", "2016-04-17-20-32-59", 2723],
-                ["UST-10LX/", "2016-04-17-20-34-16", 2332],
-                ["UST-10LX/", "2016-08-17-13-08-32", 2649],
-                ["UST-10LX/", "2016-08-17-13-16-56", 2832],
-                ["UST-10LX/", "2016-08-17-13-18-08", 3283],
-                ["UST-10LX/", "2016-02-16-15-46-43", 8971],
-                ["UST-10LX/", "2016-02-16-16-01-46", 9799],
-                ["UST-10LX/", "2016-02-16-16-17-06", 7251],
-                ["UST-10LX/", "2016-02-16-21-18-05", 6498],
-                ["UST-10LX/", "2016-02-16-21-20-53", 9099],
-                ["UST-10LX/", "2016-08-17-22-05-52", 67149]]
+#  bdsl_train = [["UST-10LX/", "2016-08-17-12-48-06", 403], 
+#                ["UST-10LX/", "2016-08-17-12-56-32", 544], 
+#                ["UST-10LX/", "2016-08-17-12-57-16", 835],
+#                ["UST-10LX/", "2016-08-17-12-57-54", 672],
+#                ["UST-10LX/", "2016-08-17-12-58-32", 1191],
+#                ["UST-10LX/", "2016-04-17-20-32-59", 2723],
+#                ["UST-10LX/", "2016-04-17-20-34-16", 2332],
+#                ["UST-10LX/", "2016-08-17-13-08-32", 2649],
+#                ["UST-10LX/", "2016-08-17-13-16-56", 2832],
+#                ["UST-10LX/", "2016-08-17-13-18-08", 3283],
+#                ["UST-10LX/", "2016-02-16-15-46-43", 8971],
+#                ["UST-10LX/", "2016-02-16-16-01-46", 9799],
+#                ["UST-10LX/", "2016-02-16-16-17-06", 7251],
+#                ["UST-10LX/", "2016-02-16-21-18-05", 6498],
+#                ["UST-10LX/", "2016-02-16-21-20-53", 9099],
+#                ["UST-10LX/", "2016-08-17-22-05-52", 67149]]
 
 #                ["URG-04LX/2011-09/", "2011-09-22-21-09-14", 1049],
 #                ["URG-04LX/2011-09/", "2011-09-22-21-10-59", 2692],
@@ -3793,18 +3793,11 @@ def CurateTrainTest():
 #                ["URG-04LX/2013-12/", "2013-12-17-17-34-41", 1274]]
 
 
-
-
-
-
-
-
   laser_dataset_train = LaserDataset('../../laser_images/full_normalized/', bdsl_train, transform=transform)
 
-
   #TODO: better way to differentiate training and testing sets
-  bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
-  #bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 320]]
+  #bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
+  bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 33]]
 
   laser_dataset_test = LaserDataset('../../laser_images/full_normalized/', bdsl_test, transform=transform)
 
@@ -3822,7 +3815,9 @@ def SpecialQuerySet():
   normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
   transform = transforms.Compose([to_tensor, normalize])
 
-  bdsl_query = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
+  #bdsl_query = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
+  #bdsl_query = [["UST-10LX/", "2016-04-17-20-34-16", 2332]]
+  bdsl_query = [["UST-10LX/", "2016-04-17-20-32-59", 2723]]
   
   #bdsl_query = [["2016-08-17-12-48-06", 403],
   #              ["2016-08-17-12-56-32", 544],
@@ -4078,20 +4073,7 @@ def CorruptedSets(sister_set):
               ["UST-10LX/Corrupted_SaltPepper/", "2016-02-16-21-18-05", 6498],
               ["UST-10LX/Corrupted_SaltPepper/", "2016-02-16-21-20-53", 9099]]
 
-  humn_set = [["UST-10LX/Corrupted_Humans/", "2016-08-17-12-48-06", 403],
-              ["UST-10LX/Corrupted_Humans/", "2016-08-17-12-56-32", 544],
-              ["UST-10LX/Corrupted_Humans/", "2016-08-17-12-57-16", 835],
-              ["UST-10LX/Corrupted_Humans/", "2016-08-17-12-57-54", 672],
-              ["UST-10LX/Corrupted_Humans/", "2016-08-17-12-58-32", 1191],
-              ["UST-10LX/Corrupted_Humans/", "2016-04-17-20-32-59", 2723],
-              ["UST-10LX/Corrupted_Humans/", "2016-04-17-20-34-16", 2332],
-              ["UST-10LX/Corrupted_Humans/", "2016-08-17-13-08-32", 2649],
-              ["UST-10LX/Corrupted_Humans/", "2016-08-17-13-16-56", 2832],
-              ["UST-10LX/Corrupted_Humans/", "2016-02-16-15-46-43", 8971],
-              ["UST-10LX/Corrupted_Humans/", "2016-02-16-16-01-46", 9799],
-              ["UST-10LX/Corrupted_Humans/", "2016-02-16-16-17-06", 7251],
-              ["UST-10LX/Corrupted_Humans/", "2016-02-16-21-18-05", 6498],
-              ["UST-10LX/Corrupted_Humans/", "2016-02-16-21-20-53", 9099]]
+  """
   """
   corrupted_set = [["", "2016-08-17-12-48-06", 403],
                    ["", "2016-08-17-12-56-32", 544],
@@ -4108,7 +4090,8 @@ def CorruptedSets(sister_set):
                    ["", "2016-02-16-21-18-05", 6498],
                    ["", "2016-02-16-21-20-53", 9099],
                    ["", "2016-08-17-22-05-52", 67149]]
-
+  """
+  corrupted_set = [["", "2016-04-17-20-32-59", 2723]]
 
   #root_dirs = ["UST-10LX/Corrupted_Blur/", "UST-10LX/Corrupted_SaltPepper/", "UST-10LX/Corrupted_Humans/"]
   root_dirs = ["../../laser_images/full_normalized/UST-10LX/Corrupted_Blur/"]
@@ -4119,3 +4102,225 @@ def CorruptedSets(sister_set):
   #test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
 
   return train_loader
+
+
+
+
+
+
+
+
+
+class SyntheticObjectLaserDatasets(Dataset):
+  """Laser dataset."""
+
+  def __init__(self, sister_set, root_dirs, bag_dates_scan_lengths, transform=None):
+      """
+      Args:
+          bag_dates... ((N, 3) array): Parent dirs, dates, and scan lengths.
+          root_dirs list(string): Directories with all the images.
+          transform (callable, optional): Optional transform to be applied
+              on a sample.
+      """
+      self.sister_set = sister_set
+      self.root_dirs = root_dirs
+      self.transform = transform
+      self.record = bag_dates_scan_lengths
+      total_scans = 0
+      for i in range(len(bag_dates_scan_lengths)):
+        #print(bag_dates_scan_lengths[i][0]+bag_dates_scan_lengths[i][1])
+        total_scans = total_scans + bag_dates_scan_lengths[i][2]
+
+      self.size = total_scans
+
+  def PNGtoNPA(self, file_name):
+    im = cv2.imread(file_name)
+    return im
+  
+  def __len__(self):
+    return self.size
+
+  def __getitem__(self, idx):
+    file_a_base = ""
+    file_b_base = ""
+    file_a_mid = ""
+    file_b_mid = ""
+
+    window_size = 5
+
+    a_idx = idx + 1 # idx is zero indexed and files are 1 indexed
+    prev_seen = 0
+    seen = 0
+    record_idx = 0
+    done = False
+    while not done:
+      #print(prev_seen)
+      seen = seen + self.record[record_idx][2]
+      #print(seen)
+      #print(a_idx)
+      if seen >= a_idx:
+        done = True
+      else:
+        record_idx = record_idx + 1
+
+      if done:
+        inner_addr = a_idx - prev_seen
+        #TODO: select from different corrupted root_dirs
+        file_a_base = self.root_dirs[0]+self.record[record_idx][0]+self.record[record_idx][1]+"/"
+        file_a_mid = self.record[record_idx][1]+"_"+str(inner_addr)+"_"
+
+      prev_seen = seen
+
+    valid_b = False
+    while not valid_b:
+      b_idx = random.randint(1, self.size)
+      if abs(b_idx - a_idx) > window_size:
+        valid_b = True
+
+    prev_seen = 0
+    seen = 0
+    record_idx = 0
+    done = False
+    while not done:
+      seen = seen + self.record[record_idx][2]
+      if seen >= b_idx:
+        done = True
+      else:
+        record_idx = record_idx + 1
+
+      if done:
+        inner_addr = b_idx - prev_seen
+        #TODO: select from different corrupted root_dirs
+        file_b_base = self.root_dirs[0]+self.record[record_idx][0]+self.record[record_idx][1]+"/"
+        file_b_mid = self.record[record_idx][1]+"_"+str(inner_addr)+"_"
+
+      prev_seen = seen
+
+    asynth_norm = self.PNGtoNPA(file_a_base+file_a_mid+"norm.png")
+    bsynth_norm = self.PNGtoNPA(file_b_base+file_b_mid+"norm.png")
+    asynth_rot = self.PNGtoNPA(file_a_base+file_a_mid+"rot.png")
+    bsynth_rot = self.PNGtoNPA(file_b_base+file_b_mid+"rot.png")
+    if self.transform:
+      asynth_norm = self.transform(asynth_norm)
+      bsynth_norm = self.transform(bsynth_norm)
+      asynth_rot = self.transform(asynth_rot)
+      bsynth_rot = self.transform(bsynth_rot)
+
+    asynth_norm = asynth_norm[0, :, :]
+    asynth_norm = asynth_norm.unsqueeze(0)
+    bsynth_norm = bsynth_norm[0, :, :]
+    bsynth_norm = bsynth_norm.unsqueeze(0)
+
+    asynth_rot = asynth_rot[0, :, :]
+    asynth_rot = asynth_rot.unsqueeze(0)
+    bsynth_rot = bsynth_rot[0, :, :]
+    bsynth_rot = bsynth_rot.unsqueeze(0)
+
+    b_norm, b_rot = self.sister_set.getSpecificItem(b_idx-1)
+
+    #print(asynth_norm.shape)
+    #print(bsynth_norm.shape)
+    #print(b_norm.shape)
+
+    # a' should be closer to b' than to b
+    # ' denotes synthetic object present in scan
+    return asynth_norm, bsynth_norm, b_norm, asynth_rot, bsynth_rot, b_rot
+
+
+#TODO: rewrite for new data base structure
+  def getSpecificItem(self, idx):
+    idx = idx + 1
+    prev_seen = 0
+    seen = 0
+    record_idx = 0
+    done = False
+    while not done:
+      seen = seen + self.record[record_idx][2]
+      if seen >= idx:
+        done = True
+      else:
+        record_idx = record_idx + 1
+
+      if done:
+        inner_addr = idx - prev_seen
+        file_base = self.root_dir + self.record[record_idx][0] + self.record[record_idx][1] + "/"
+        file_mid = self.record[record_idx][1] + "_" + str(inner_addr) + "_"
+
+      prev_seen = seen
+
+    #print(file_base + file_mid + "norm.png")
+
+    sample_norm = self.PNGtoNPA(file_base + file_mid + "norm.png")
+    sample_rot = self.PNGtoNPA(file_base + file_mid + "rot.png")
+    if self.transform:
+      sample_norm = self.transform(sample_norm)
+      sample_rot = self.transform(sample_rot)
+
+    sample_norm = sample_norm[0, :, :]
+    sample_norm = sample_norm.unsqueeze(0)
+    #sample_norm = sample_norm.unsqueeze(0)
+
+    sample_rot = sample_rot[0, :, :]
+    sample_rot = sample_rot.unsqueeze(0)
+    #sample_rot = sample_rot.unsqueeze(0)
+
+    return sample_norm, sample_rot
+
+#TODO: rewrite for new data base structure
+  def getAddress(self, idx):
+    return self.record[idx]
+
+
+
+
+
+def ObjectifiedSets(sister_set):
+  to_tensor = transforms.ToTensor()
+  normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+  transform = transforms.Compose([to_tensor, normalize])
+  
+  """
+  humn_set = [["UST-10LX/Corrupted_Humans/", "2016-08-17-12-48-06", 403],
+              ["UST-10LX/Corrupted_Humans/", "2016-08-17-12-56-32", 544],
+              ["UST-10LX/Corrupted_Humans/", "2016-08-17-12-57-16", 835],
+              ["UST-10LX/Corrupted_Humans/", "2016-08-17-12-57-54", 672],
+              ["UST-10LX/Corrupted_Humans/", "2016-08-17-12-58-32", 1191],
+              ["UST-10LX/Corrupted_Humans/", "2016-04-17-20-32-59", 2723],
+              ["UST-10LX/Corrupted_Humans/", "2016-04-17-20-34-16", 2332],
+              ["UST-10LX/Corrupted_Humans/", "2016-08-17-13-08-32", 2649],
+              ["UST-10LX/Corrupted_Humans/", "2016-08-17-13-16-56", 2832],
+              ["UST-10LX/Corrupted_Humans/", "2016-02-16-15-46-43", 8971],
+              ["UST-10LX/Corrupted_Humans/", "2016-02-16-16-01-46", 9799],
+              ["UST-10LX/Corrupted_Humans/", "2016-02-16-16-17-06", 7251],
+              ["UST-10LX/Corrupted_Humans/", "2016-02-16-21-18-05", 6498],
+              ["UST-10LX/Corrupted_Humans/", "2016-02-16-21-20-53", 9099]]
+  """
+  """
+  objectified_set = [["", "2016-08-17-12-48-06", 403],
+                     ["", "2016-08-17-12-56-32", 544],
+                     ["", "2016-08-17-12-57-16", 835],
+                     ["", "2016-08-17-12-57-54", 672],
+                     ["", "2016-08-17-12-58-32", 1191],
+                     ["", "2016-04-17-20-32-59", 2723],
+                     ["", "2016-04-17-20-34-16", 2332],
+                     ["", "2016-08-17-13-08-32", 2649],
+                     ["", "2016-08-17-13-16-56", 2832],
+                     ["", "2016-02-16-15-46-43", 8971],
+                     ["", "2016-02-16-16-01-46", 9799],
+                     ["", "2016-02-16-16-17-06", 7251],
+                     ["", "2016-02-16-21-18-05", 6498],
+                     ["", "2016-02-16-21-20-53", 9099],
+                     ["", "2016-08-17-22-05-52", 67149]]
+  """
+  objectified_set = [["", "2016-04-17-20-32-59", 2723]]
+
+  #root_dirs = ["UST-10LX/Corrupted_Blur/", "UST-10LX/Corrupted_SaltPepper/", "UST-10LX/Corrupted_Humans/"]
+  root_dirs = ["../../laser_images/full_normalized/UST-10LX/Corrupted_Humans/"]
+
+  objectified_dataset = SyntheticObjectLaserDatasets(sister_set, root_dirs, objectified_set, transform=transform)
+
+  train_loader = torch.utils.data.DataLoader(objectified_dataset, batch_size=16, shuffle=True)
+  #test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
+
+  return train_loader
+

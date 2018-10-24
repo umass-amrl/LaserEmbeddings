@@ -13,6 +13,11 @@ Created on Tue Mar  6 17:35:43 2018
 
 from __future__ import print_function
 
+import rospy
+#from std_msgs.msg import string
+from std_msgs.msg import String
+
+
 import os
 #import copy
 import torch
@@ -54,69 +59,39 @@ import training_and_def_net3 as net3
 
 #TODO: LIST OF EXPERIMENTS
 
-
-#class Net(nn.Module): #NOTE: slightly modded LeNet
-#  def __init__(self):
-#    super(Net, self).__init__()
-#    # 1 input image channel, 8 output channels, 11x11 square convolution kernel
-#    # Conv2d(channels(layers, output channels, kernel size, stride, padding)
-#    # kernel, stride, padding dimensions may be specified explicitly 
-#    self.conv1 = nn.Conv2d(1, 8, 11, 1, 1)
-#    self.conv2 = nn.Conv2d(8, 16, 5, 1, 1)
-#    # an affine operation: y = Wx + b
-#    self.fc1 = nn.Linear(16 * 30 * 30, 256)
-#    self.fc2 = nn.Linear(256, 128)
-#    self.fc3 = nn.Linear(128, 64)
-#
-#  def forward(self, x):
-#    # Max pooling over a (4, 4) window 
-#    x = F.max_pool2d(F.relu(self.conv1(x)), (4, 4))
-#    x = F.max_pool2d(F.relu(self.conv2(x)), (2, 2))
-#    x = x.view(-1, self.num_flat_features(x))
-#    x = F.relu(self.fc1(x))
-#    x = F.relu(self.fc2(x))
-#    x = self.fc3(x)
-#    return x
-#
-#  def num_flat_features(self, x):
-#    size = x.size()[1:]  # all dimensions except the batch dimension
-#    num_features = 1
-#    for s in size:
-#      num_features *= s
-#    return num_features
-
+embeddings_database = []
 
 class Net3(nn.Module): #NOTE: 
   def __init__(self):
     super(Net3, self).__init__()
 
     # non-square kernel 
-    self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, (0, 1))
-    self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, (0, 2))
-    self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, (0, 4))
-    self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, (0, 8))
-    self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, (0, 16))
-    self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, (0, 32))
-    self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, (0, 64))
+    #self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, (0, 1))
+    #self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, (0, 2))
+    #self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, (0, 4))
+    #self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, (0, 8))
+    #self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, (0, 16))
+    #self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, (0, 32))
+    #self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, (0, 64))
 
-    self.conv2 = nn.Conv2d(14, 8, 11, 1, 1)
-    self.conv3 = nn.Conv2d(8, 16, 5, 1, 1)
-    self.fc1 = nn.Linear(16 * 30 * 30, 256)
+    #self.conv2 = nn.Conv2d(14, 8, 11, 1, 1)
+    #self.conv3 = nn.Conv2d(8, 16, 5, 1, 1)
+    #self.fc1 = nn.Linear(16 * 30 * 30, 256)
     self.fc2 = nn.Linear(256, 128)
 
-    #NOTE: BIG embeddings
-    #self.fc3 = nn.Linear(128, 64)
-    #self.fc4 = nn.Linear(64, 128)
-
     #NOTE: small embeddings
-    self.fc3 = nn.Linear(128, 32)
-    self.fc4 = nn.Linear(32, 128)
-
-    self.fc5 = nn.Linear(128, 256)
+    self.fc3 = nn.Linear(128, 64)
+    #self.fc4 = nn.Linear(64, 32)
+    #self.fc5 = nn.Linear(32, 64)
+    self.fc6 = nn.Linear(64, 128)
+    self.fc7 = nn.Linear(128, 256)
 
   def forward(self, emb):
-    x = F.relu(self.fc4(emb))
-    x = self.fc5(x)
+    #print(emb.shape)
+    #x = F.relu(self.fc5(emb))
+    x = F.relu(self.fc6(emb))
+    #print(x.shape)
+    x = F.sigmoid(self.fc7(x))
 
     return x
 
@@ -165,6 +140,7 @@ def visEmbeddingDecoder():
     embedding = np.array(embedding_list, dtype=np.float32)
     embeddings.append(embedding)
 
+  """
   k = 10
   interpolated_embeddings = []
   for i in range(len(embeddings)-1):
@@ -172,7 +148,7 @@ def visEmbeddingDecoder():
     for j in range(k):
       interpolated_embeddings.append(embeddings[i] + float(j)/float(k) * embedding_diff)
   interpolated_embeddings.append(embeddings[-1])
-
+  """
   model = Net3()
   model = model.cuda()
   tnet = TripletNet(model)
@@ -196,7 +172,8 @@ def visEmbeddingDecoder():
   print('  + Number of params: {}'.format(n_parameters))
 
   recreations = []
-  for emb in interpolated_embeddings:
+  #for emb in interpolated_embeddings:
+  for emb in embeddings:
     # turn training off
     tnet.eval()
     emb = Variable(torch.from_numpy(emb))
@@ -227,19 +204,15 @@ def writeEmbeddings(embeddings):
     outfile.write("\n")
   outfile.close();
 
-def generateEmbeddings(test_set, tnet):
+def generateEmbeddings(test_set):
 
-  
   #rawoutfile = open('scansasimages.txt', 'a')
 
   # switch to evaluation mode
   tnet.eval()
 
   embeddings = []
-  #data_id = 0
-  #for batch_idx, (data1n, data2n, data3n, data1r, data2r, data3r) in enumerate(test_loader):
-  #test_set_len = len(test_set)
-  #for idx in range(0, test_set_len, 300):
+  #for idx in range(0, len(test_set), 300):
   for idx in range(len(test_set)):
 
     if idx % 100 == 0:
@@ -355,44 +328,29 @@ def SubspaceKNNOnEmbeddings(database, queries, basis_vectors, weights):
 
 ############################## MAIN ##############################
 
-def main():
+def simpleQuery(query_embeddings):
+
+  npqueryembed = np.zeros((len(query_embeddings), len(query_embeddings[0])))
+
+  final_query_embeddings = []
+  embedding_sum = np.zeros(len(query_embeddings[0]))
+  print("number of embedding examples: "+str(len(query_embeddings)))
+  for i in range(len(query_embeddings)):
+    embedding_sum = embedding_sum + np.asarray(query_embeddings[i])
+    npqueryembed[i, :] = np.asarray(query_embeddings[i])
+  embedding_mean = np.true_divide(embedding_sum, len(query_embeddings))
+  final_query_embeddings.append(embedding_mean)
+
+  query_results = KNNOnEmbeddings(embeddings_database, final_query_embeddings)
+
+  for i in range(len(query_results)):
+    print("QUERY: "+str(i))
+    for j in range(len(query_results[i])):
+      print(query_results[i][j])
 
 
-  #TODO: currently only supports querying for one feature at a time
-  # load dataset
-  #train_loader, test_loader = cptn.CurateTrainTest()
-  #test_set = cptn.SpecialTestSet()
-  #query_set = cptn.FeatureOnlyTestSet()
-  query_set = cptn.MonteCarloTestSet()
-  database_set = cptn.SpecialQuerySet()
+def advancedQuery():
 
-  model = net3.Net3()
-  model = model.cuda()
-  tnet = net3.TripletNet(model)
-  tnet = tnet.cuda()
-
-  resume = True
-  checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
-
-  # optionally resume from a checkpoint
-  if resume:
-    if os.path.isfile(checkpoint_to_load):
-      print("=> loading checkpoint '{}'".format(checkpoint_to_load))
-      checkpoint = torch.load(checkpoint_to_load)
-      tnet.load_state_dict(checkpoint['state_dict'])
-      print("=> loaded checkpoint '{}' (epoch {})"
-              .format(checkpoint_to_load, checkpoint['epoch']))
-    else:
-      print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
-
-  n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
-  print('  + Number of params: {}'.format(n_parameters))
-
-  print("getting database of embeddings")
-  # run dataset through network to get embeddings
-  query_embeddings = generateEmbeddings(query_set, tnet)
-  database_embeddings = generateEmbeddings(database_set, tnet)
-  #writeEmbeddings(embeddings)
 
   print("finding query mean")
   print(len(query_embeddings))
@@ -437,8 +395,53 @@ def main():
       print(query_results[i][j])
 
 
-  # generate interpolated embeddings and save recreated scans from autoencoder
-  #visEmbeddingDecoder()
+def loadNetwork():
+  model = net3.Net3()
+  model = model.cuda()
+  tnet = net3.TripletNet(model)
+  tnet = tnet.cuda()
+
+  checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
+
+  if os.path.isfile(checkpoint_to_load):
+    print("=> loading checkpoint '{}'".format(checkpoint_to_load))
+    checkpoint = torch.load(checkpoint_to_load)
+    tnet.load_state_dict(checkpoint['state_dict'])
+    print("=> loaded checkpoint '{}' (epoch {})"
+            .format(checkpoint_to_load, checkpoint['epoch']))
+  else:
+    print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
+
+  n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
+  print('  + Number of params: {}'.format(n_parameters))
+
+  return tnet
+
+def loadEmbeddingDatabase():
+  database_set = cptn.SpecialQuerySet()
+  global embeddings_database = generateEmbeddings(database_set)
+
+def queryCallback(data):
+  rospy.loginfo(rospy.get_caller_id() + "I heard %s", data.data)
+  if data.data == "FO":
+    query_set = cptn.FeatureOnlyTestSet()
+    query_embeddings = generateEmbeddings(query_set)
+    simpleQuery(query_embeddings)
+  elif data.data == "MC":
+    query_set = cptn.MonteCarloTestSet()
+    query_embeddings = generateEmbeddings(query_set)
+    advancedQuery()
+
+def main():
+  global tnet = loadNetwork()
+  loadEmbeddingDatabase()
+
+  rospy.init_node('QueryManager', anonymous=True)
+  rospy.Subscriber("QueryFilename", String, queryCallback)
+
+  print("Ready to answer queries")
+
+  rospy.spin()
 
 if __name__ == '__main__':
   main()

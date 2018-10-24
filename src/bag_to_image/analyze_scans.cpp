@@ -9,6 +9,7 @@
 #include "ros/package.h"
 #include "rosbag/bag.h"
 #include "rosbag/view.h"
+#include "std_msgs/String.h"
 #include "sensor_msgs/LaserScan.h"
 #include "gui_msgs/GuiKeyboardEvent.h"
 #include "gui_msgs/GuiMouseClickEvent.h"
@@ -27,17 +28,21 @@ bool feature_selected_ = false;
 ros::Subscriber mouse_subscriber_;
 ros::Subscriber keyboard_subscriber_;
 ros::Publisher display_publisher_;
+ros::Publisher selection_publisher_;
 
 gui_msgs::LidarDisplayMsg display_message_;
+std_msgs::String query_message_;
 
 string bag_name_;
 vector<vector<float>> all_scans_;
+vector<vector<float>> all_scans_sidekick_;
 
 int current_view_ = 1;
 vector<int> id_in_progress_;
 bool viewing_recreation_ = true;
-bool normalized_ = false;
-//bool normalized_ = true;
+//bool normalized_ = false;
+bool normalized_ = true;
+bool side_by_side_viewing_ = false;
 
 float min_range = 0.0;    // meters
 float max_range = 10.0;   // meters
@@ -94,33 +99,57 @@ void pubScanFeature() {
 }
 */
 
+void calculatePoints(const float start_angle, const float angular_res,
+                     const Eigen::Vector2f origin, const vector<float> scan) {
+  for (size_t i = 0; i < scan.size(); ++i) {
+    float angle = (start_angle + angular_res * i) * (M_PI / 180.0);
+    Eigen::Rotation2Df R(angle);
+    Eigen::Vector2f x(scan[i], 0.0);
+    Eigen::Vector2f p = R * x + origin;
+    display_message_.points_x.push_back(p(0));
+    display_message_.points_y.push_back(p(1));
+  }
+}
+
 void pubScan() {
   //TODO: figure out why there is lag / weird behavior in the scan display
   //TODO: harden logic / parameter setting for whether or not recreated scans are normalized
   std::cout << "scan number: " << current_view_ << std::endl;
   display_message_.points_x.clear();
   display_message_.points_y.clear();
-  vector<float> scan = all_scans_[current_view_ - 1];
-
-  if (viewing_recreation_) {
+  if (!side_by_side_viewing_) {
+    vector<float> scan = all_scans_[current_view_ - 1];
+    Eigen::Vector2f origin(0.0, 0.0);
+    float start_angle = -135.0;         // default value for UST-10LX
+    float angular_res = 270.0 / 1024.0; // default value for UST-10LX?
     if (normalized_) {
       angular_res = 360.0 / float(scan.size());
     }
     else {
       angular_res = 270.0 / float(scan.size());
     }
+    calculatePoints(start_angle, angular_res, origin, scan);
+  }
+  else {
+    vector<float> scan1 = all_scans_[current_view_ - 1];
+    vector<float> scan2 = all_scans_sidekick_[current_view_ - 1];
+    Eigen::Vector2f origin1(-12.0, 0.0);
+    Eigen::Vector2f origin2(12.0, 0.0);
+    float start_angle1 = -135.0;
+    float start_angle2 = -180.0;
+    float angular_res1 = 270.0 / float(scan1.size());
+    //float angular_res2 = 360.0 / float(scan2.size());
+    float angular_res2 = 360.0 / float(scan2.size());
+    calculatePoints(start_angle1, angular_res1, origin1, scan1);
+    calculatePoints(start_angle2, angular_res2, origin2, scan2);
   }
 
-  float start_angle = -135.0;
-  for (size_t i = 0; i < scan.size(); ++i) {
-    float angle = (start_angle + angular_res * i) * (M_PI / 180.0);
-    Eigen::Rotation2Df R(angle);
-    Eigen::Vector2f x(scan[i], 0.0);
-    Eigen::Vector2f p = R * x;
-    display_message_.points_x.push_back(p(0));
-    display_message_.points_y.push_back(p(1));
-  }
   display_publisher_.publish(display_message_);
+}
+
+void publishQuery(string filename) {
+  query_message_.data = filename;
+  selection_publisher_.publish(query_message_);
 }
 
 //void saveScan(const string filename) {
@@ -140,6 +169,7 @@ void saveScanFeature(string filename) {
     outfile << " " << scan_feature_.ranges[i];
   }
   outfile << "\n";
+  publishQuery(filename);
 }
 
 void incrementView() {
@@ -357,6 +387,7 @@ void getDownsampledScansFromTxt() {
   //std::ifstream infile("downsampledscans.txt");
 
   float maxin = 0.0;
+  float minin = 0.0;
 
   while (std::getline(infile, line)) {
     std::istringstream iss(line);
@@ -364,6 +395,7 @@ void getDownsampledScansFromTxt() {
     vector<float> single_scan;
     while (iss >> value) {
       maxin = fmax(maxin, value);
+      minin = fmin(minin, value);
       // Assumes 0.0 <= 'value' <= 255.0
       //value = value / 255.0;
       //single_scan.push_back(max_range * (1.0 - value));
@@ -376,7 +408,16 @@ void getDownsampledScansFromTxt() {
     all_scans_.push_back(single_scan);
   }
   std::cout << "max input: " << maxin << std::endl;
+  std::cout << "min input: " << minin << std::endl;
   viewing_recreation_ = true;
+}
+
+void getSideBySide() {
+  getDownsampledScansFromTxt();
+  all_scans_sidekick_ = all_scans_;
+  all_scans_.clear();
+  getScansFromBag();
+  side_by_side_viewing_ = true;
 }
 
 int main(int argc, char* argv[]) {
@@ -388,6 +429,7 @@ int main(int argc, char* argv[]) {
   getScansFromBag();
   //getScansFromTxt();
   //getDownsampledScansFromTxt();
+  //getSideBySide();
   std::cout << "loaded" << std::endl;
 
   ros::init(argc, argv, "scanalyzer");
@@ -396,6 +438,7 @@ int main(int argc, char* argv[]) {
   mouse_subscriber_ = nh.subscribe("Gui/VectorLocalization/GuiMouseClickEvents", 1, MouseClickCallback);
   keyboard_subscriber_ = nh.subscribe("Gui/VectorLocalization/GuiKeyboardEvents", 1, KeyboardEventCallback);
   display_publisher_ = nh.advertise<gui_msgs::LidarDisplayMsg>("Gui/VectorLocalization/Gui", 1, true);
+  selection_publisher_ = nh.advertise<std_msgs::String>("QueryFilename", 1, true);
 
   ros::spin();
 
