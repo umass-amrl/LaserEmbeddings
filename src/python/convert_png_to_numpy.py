@@ -2004,11 +2004,11 @@ class LaserDataset(Dataset):
 
     sample_norm = sample_norm[0, :, :]
     sample_norm = sample_norm.unsqueeze(0)
-    sample_norm = sample_norm.unsqueeze(0)
+    #sample_norm = sample_norm.unsqueeze(0)
 
     sample_rot = sample_rot[0, :, :]
     sample_rot = sample_rot.unsqueeze(0)
-    sample_rot = sample_rot.unsqueeze(0)
+    #sample_rot = sample_rot.unsqueeze(0)
 
     return sample_norm, sample_rot
 
