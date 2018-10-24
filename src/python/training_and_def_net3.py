@@ -193,29 +193,6 @@ def train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch):
     target1 = Variable(target1)
     target1 = target1.cuda()
 
-    loss_triplet = criterion1(dista, distb, target1)
-    #print("triplet loss: ")
-    #print(loss_triplet)
-
-    #print("ds scan: ")
-    #print(ds_scan[0, :])
-    #print("recon: ")
-    #print(reconstruction[0, :])
-
-    recon_error = criterion2(ds_scan, reconstruction)
-    #print("recon error: ")
-    #print(recon_error[0, 0])
-    #error = 0.0
-    #rawscanimg = ds_scan[0, :].data.tolist()
-    #recreation = reconstruction[0, :].data.tolist()
-    #for i in range(len(rawscanimg)):
-    #  error = error + abs(rawscanimg[i] - recreation[i])
-    #print("error calc manually: ")
-    #print(error)
-
-    loss_reconstruction = torch.mean(recon_error)
-    #loss_reconstruction = torch.mean(criterion2(ds_scan, reconstruction))
-
     #rawoutfile = open('scansasimages.txt', 'a')
     #rawscanimg = ds_scan[0, :].data.tolist()
     #for i in range(len(rawscanimg)):
@@ -224,11 +201,10 @@ def train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch):
     #rawoutfile.write("\n")
     #rawoutfile.close()
 
-    #print("recon loss: ")
-    #print(loss_reconstruction)
+    loss_triplet = criterion1(dista, distb, target1)
+    loss_reconstruction = torch.mean(criterion2(ds_scan, reconstruction))
     loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
-    #loss = 10.0 * loss_triplet + loss_reconstruction + 0.001 * loss_embedd
-    loss = loss_reconstruction
+    loss = 10.0 * loss_triplet + loss_reconstruction + 0.001 * loss_embedd
 
     # measure accuracy and record loss
     acc = accuracy(dista, distb)
@@ -312,14 +288,15 @@ def save_checkpoint(state, is_best, filename):
 
 def main():
   global plotter 
-  plotter = VisdomLinePlotter(env_name="plooter")
+  #plotter = VisdomLinePlotter(env_name="plooter")
+  plotter = VisdomLinePlotter()
 
   laser_dataset_train, laser_dataset_test = cptn.CurateTrainTest()
   train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=16, shuffle=True)
   test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
 
-  #corrupt_train_loader = cptn.CorruptedSets(laser_dataset_train)
-  #objectified_train_loader = cptn.ObjectifiedSets(laser_dataset_train)
+  corrupt_train_loader = cptn.CorruptedSets(laser_dataset_train)
+  objectified_train_loader = cptn.ObjectifiedSets(laser_dataset_train)
 
   model = Net3()
   model = model.cuda()
@@ -375,7 +352,7 @@ def main():
     margin = 0.4
     criterion1 = torch.nn.MarginRankingLoss(margin=margin)
     train3(corrupt_train_loader, tnet, criterion1, criterion2, optimizer, epoch)
-    margin = 0.4
+    margin = 0.01
     criterion1 = torch.nn.MarginRankingLoss(margin=margin)
     train3(objectified_train_loader, tnet, criterion1, criterion2, optimizer, epoch)
     

@@ -29,3 +29,20 @@ TARGET_LINK_LIBRARIES(${target}
    ${libs}
    gflags
    gui_libraries)
+
+SET(target SynthesizeQuery)
+ROSBUILD_ADD_EXECUTABLE(${target}
+   synthesize_query_scan.cpp)
+
+ADD_DEPENDENCIES(${target}
+   shared_libraries
+   perception_library
+   gui_libraries
+   rosbuild_precompile)
+
+TARGET_LINK_LIBRARIES(${target}
+   shared_libraries
+   perception_library
+   ${libs}
+   gflags
+   gui_libraries)

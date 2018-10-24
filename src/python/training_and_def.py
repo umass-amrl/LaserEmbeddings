@@ -421,13 +421,13 @@ def loadEmbeddingDatabase():
   database_set = cptn.SpecialQuerySet()
   global embeddings_database = generateEmbeddings(database_set)
 
-def queryCallback(data):
-  rospy.loginfo(rospy.get_caller_id() + "I heard %s", data.data)
-  if data.data == "FO":
+def queryCallback(msg):
+  rospy.loginfo(rospy.get_caller_id() + "I heard %s", msg.data)
+  if msg.data == "FO":
     query_set = cptn.FeatureOnlyTestSet()
     query_embeddings = generateEmbeddings(query_set)
     simpleQuery(query_embeddings)
-  elif data.data == "MC":
+  elif msg.data == "MC":
     query_set = cptn.MonteCarloTestSet()
     query_embeddings = generateEmbeddings(query_set)
     advancedQuery()
@@ -437,7 +437,7 @@ def main():
   loadEmbeddingDatabase()
 
   rospy.init_node('QueryManager', anonymous=True)
-  rospy.Subscriber("QueryFilename", String, queryCallback)
+  rospy.Subscriber("DataDirectory", String, queryCallback)
 
   print("Ready to answer queries")
 
