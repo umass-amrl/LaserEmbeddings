@@ -14,6 +14,7 @@
 #include "gui_msgs/GuiKeyboardEvent.h"
 #include "gui_msgs/GuiMouseClickEvent.h"
 #include "gui_msgs/LidarDisplayMsg.h"
+#include "gui_msgs/ScanFeatureMsg.h"
 #include "../perception_tools/perception_2d.h"
 #include "shared_structs.h"
 
@@ -31,7 +32,7 @@ ros::Publisher display_publisher_;
 ros::Publisher selection_publisher_;
 
 gui_msgs::LidarDisplayMsg display_message_;
-std_msgs::String query_message_;
+gui_msgs::ScanFeatureMsg selection_message_;
 
 string bag_name_;
 vector<vector<float>> all_scans_;
@@ -40,8 +41,8 @@ vector<vector<float>> all_scans_sidekick_;
 int current_view_ = 1;
 vector<int> id_in_progress_;
 bool viewing_recreation_ = true;
-//bool normalized_ = false;
-bool normalized_ = true;
+bool normalized_ = false;
+//bool normalized_ = true;
 bool side_by_side_viewing_ = false;
 
 float min_range = 0.0;    // meters
@@ -147,9 +148,13 @@ void pubScan() {
   display_publisher_.publish(display_message_);
 }
 
-void publishQuery(string filename) {
-  query_message_.data = filename;
-  selection_publisher_.publish(query_message_);
+void publishQuery() {
+  selection_message_.timestamp = ros::Time::now().toSec();
+  selection_message_.ranges = scan_feature_.ranges;
+  selection_message_.start_angle = scan_feature_.start_angle;
+  selection_message_.end_angle = scan_feature_.end_angle;
+  selection_message_.type = scan_feature_.type;
+  selection_publisher_.publish(selection_message_);
 }
 
 //void saveScan(const string filename) {
@@ -169,7 +174,8 @@ void saveScanFeature(string filename) {
     outfile << " " << scan_feature_.ranges[i];
   }
   outfile << "\n";
-  publishQuery(filename);
+  //publishQuery(filename);
+  publishQuery();
 }
 
 void incrementView() {
@@ -346,6 +352,14 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
       feature_selected_ = false;
     }
   }
+
+  if (msg.keycode == 0x57) { // key code 87, 'w' for whole
+    scan_feature_.ranges = all_scans_[current_view_ - 1];
+    scan_feature_.start_angle = -135.0 * (M_PI/180.0);
+    scan_feature_.end_angle = 135.0 * (M_PI/180.0);
+    feature_selected_ = true;
+  }
+
   ////////// saving and labeling features //////////
 }
 
@@ -438,7 +452,8 @@ int main(int argc, char* argv[]) {
   mouse_subscriber_ = nh.subscribe("Gui/VectorLocalization/GuiMouseClickEvents", 1, MouseClickCallback);
   keyboard_subscriber_ = nh.subscribe("Gui/VectorLocalization/GuiKeyboardEvents", 1, KeyboardEventCallback);
   display_publisher_ = nh.advertise<gui_msgs::LidarDisplayMsg>("Gui/VectorLocalization/Gui", 1, true);
-  selection_publisher_ = nh.advertise<std_msgs::String>("QueryFilename", 1, true);
+  //selection_publisher_ = nh.advertise<std_msgs::String>("QueryFilename", 1, true);
+  selection_publisher_ = nh.advertise<gui_msgs::ScanFeatureMsg>("ScanFeature", 1, true);
 
   ros::spin();
 

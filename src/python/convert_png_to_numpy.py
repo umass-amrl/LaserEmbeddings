@@ -1872,7 +1872,8 @@ class LaserDataset(Dataset):
     file_b_mid = ""
 
     #window_size = 1
-    window_size = 5
+    #window_size = 5
+    window_size = 20
 
     a_idx = idx + 1 # idx is zero indexed and files are 1 indexed
     aprime_idx = 0
@@ -3871,8 +3872,10 @@ def FeatureOnlyTestSet():
   normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
   transform = transforms.Compose([to_tensor, normalize])
 
-  bdsl_test = [["UST-10LX/", "FeatureOnly", 1]]
-  laser_dataset_test = LaserDataset('../../laser_images/full_normalized/', bdsl_test, transform=transform)
+  #bdsl_test = [["UST-10LX/", "FeatureOnly", 1]]
+  #laser_dataset_test = LaserDataset('../../laser_images/full_normalized/', bdsl_test, transform=transform)
+  bdsl_test = [["", "FeatureOnly", 1]]
+  laser_dataset_test = LaserDataset('../../', bdsl_test, transform=transform)
 
   return laser_dataset_test
 
@@ -3911,7 +3914,9 @@ class CorruptedLaserDatasets(Dataset):
     file_a_mid = ""
     file_b_mid = ""
 
-    window_size = 5
+    #window_size = 1
+    #window_size = 5
+    window_size = 20
 
     a_idx = idx + 1 # idx is zero indexed and files are 1 indexed
     prev_seen = 0

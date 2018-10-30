@@ -478,6 +478,23 @@ void convertScansToImagesPadAndFixedBounds(const vector<vector<float>>& all_scan
     all_padded_scans.push_back(padded_scan);
   }
 
+
+//  for (size_t i = 0; i < all_scans[0].size(); ++i) {
+//    std::cout << all_scans[0][i];
+//    if (((i + 1) % 5) == 0) {
+//      std::cout << "\n";
+//    }
+//    else {
+//      std::cout << ", ";
+//    }
+//  }
+  //for (size_t i = 0; i < all_padded_scans[0].size(); ++i) {
+  //  std::cout << all_padded_scans[0][i] << std::endl;
+  //}
+
+
+
+
   //printf("mod 256... should be 0: %d", int(all_padded_scans[0].size() % 256));
   //printf("size of scan: %d", int(all_padded_scans[0].size()));
   size_t downsampling_rate = all_padded_scans[0].size() / 256;

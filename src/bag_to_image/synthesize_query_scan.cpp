@@ -12,6 +12,7 @@
 #include "rosbag/view.h"
 #include "std_msgs/String.h"
 #include "sensor_msgs/LaserScan.h"
+#include "gui_msgs/ScanFeatureMsg.h"
 #include "../perception_tools/perception_2d.h"
 #include <CImg.h>
 #include "shared_structs.h"
@@ -30,9 +31,9 @@ float FOV = 270.0;
 float min_range = 0.0;
 float max_range = 10.0;
 //string bag_name;
-string synth_type_;
+int synth_type_;
 
-ros::Subscriber query_subscriber_;
+ros::Subscriber scan_feature_subscriber_;
 ros::Publisher directory_publisher_;
 
 float medianFilter(const vector<float> to_be_filtered) {
@@ -44,6 +45,14 @@ float medianFilter(const vector<float> to_be_filtered) {
             to_be_filtered[(to_be_filtered.size() / 2) - 1]) / 2.0;
   }
 }
+
+bool epsilonClose(const float eps, const float n1, const float n2) {
+  if (fabs(n1 - n2) <= eps) {
+    return true;
+  }
+  return false;
+}
+
 
 vector<ScanFeatureMetaData> getFeaturesFromText(string filename) {
   std::string line;
@@ -97,11 +106,15 @@ void generateFeatureOnlyScanFromFeatures(const vector<ScanFeatureMetaData> all_f
                  ((all_features[0].end_angle - all_features[0].start_angle) * (180.0 / M_PI));
   float angular_res = FOV / float(num_rays);
   float scan_start_angle = -FOV / 2.0;
-  int feature_start_index = (scan_start_angle - all_features[0].start_angle) * angular_res;
-  int feature_end_index = feature_start_index + all_features[0].ranges.size();
+  std::cout << "ranges size: " << all_features[0].ranges.size() << std::endl;
+  std::cout << "angular res: " << angular_res << std::endl;
+  std::cout << "scan start: " << scan_start_angle << std::endl;
   std::cout << "num rays: " << num_rays << std::endl;
+  int feature_start_index = (scan_start_angle - (all_features[0].start_angle * (180.0/M_PI))) * angular_res;
+  int feature_end_index = feature_start_index + all_features[0].ranges.size();
   std::cout << "start: " << feature_start_index << std::endl;
   std::cout << "end: " << feature_end_index << std::endl;
+
   // Probably should be a feature that can be enabled by the type of query
   // (eg. anywhere in the scan vs. on the left side)
   //TODO: generate random location within the scan (optional, not doing right now)
@@ -115,7 +128,8 @@ void generateFeatureOnlyScanFromFeatures(const vector<ScanFeatureMetaData> all_f
       single_scan.push_back(0.0);
     }
   }
-  all_scans->push_back(single_scan);
+  //all_scans->push_back(single_scan);
+  all_scans->push_back(all_features[0].ranges);
 }
 
 void generateMonteCarloScansFromFeatures(const vector<ScanFeatureMetaData> all_features, 
@@ -168,10 +182,10 @@ void writeScans(vector<vector<float>>* all_scans) {
 
 void convertScansToImagesPadAndFixedBounds(const vector<vector<float>>& all_scans) {
   string prefix;
-  if (synth_type_ == "MC") {
+  if (synth_type_ == 1) {
     prefix = "MCFeature";
   }
-  else if (synth_type_ == "FO") {
+  else if (synth_type_ == 0) {
     prefix = "FeatureOnly";
   }
 
@@ -221,6 +235,20 @@ void convertScansToImagesPadAndFixedBounds(const vector<vector<float>>& all_scan
   std::ofstream outfile;
   //outfile.open("downsampledscans.txt", std::ios_base::app);
   //printf("Downsampling scans..."); fflush(stdout);
+
+//  for (size_t i = 0; i < all_scans[0].size(); ++i) {
+//    std::cout << all_scans[0][i];
+//    if (((i + 1) % 5) == 0) {
+//      std::cout << "\n";
+//    }
+//    else {
+//      std::cout << ", ";
+//    }
+//  }
+  //for (size_t i = 0; i < all_padded_scans[0].size(); ++i) {
+  //  std::cout << all_padded_scans[0][i] << std::endl;
+  //}
+
   for (size_t i = 0; i < all_padded_scans.size(); ++i) {
     vector<float> padded_scan = all_padded_scans[i];
     vector<float> downsampled_scan;
@@ -251,16 +279,34 @@ void convertScansToImagesPadAndFixedBounds(const vector<vector<float>>& all_scan
   //printf(" Done.\n"); fflush(stdout);
 }
 
-void queryProcessCallback(const std_msgs::String& msg) {
+void scanSelectionCallback(const gui_msgs::ScanFeatureMsg& msg) {
 
-  vector<ScanFeatureMetaData> all_features = getFeaturesFromText(msg.data);
+  //vector<ScanFeatureMetaData> all_features = getFeaturesFromText(msg.data);
+  vector<ScanFeatureMetaData> all_features;
+
+  ScanFeatureMetaData single_feature;
+  single_feature.ranges = msg.ranges;
+  single_feature.start_angle = msg.start_angle;
+  single_feature.end_angle = msg.end_angle;
+  single_feature.type = msg.type;
+
+  float eps = 0.02;
+  for (size_t i = 0; i < single_feature.ranges.size(); ++i) {
+    if (epsilonClose(eps, single_feature.ranges[i], max_range)) {
+      single_feature.ranges[i] = 0.0;
+    }
+  }
+
+
+  all_features.push_back(single_feature);
+  //std::cout << msg.data << std::endl;
 
   vector<vector<float>> all_scans;
 
-  if (synth_type_ == "FO") {
+  if (synth_type_ == 0) {
     generateFeatureOnlyScanFromFeatures(all_features, &all_scans);
   }
-  else if (synth_type_ == "MC") {
+  else if (synth_type_ == 1) {
     //generateMonteCarloScansFromFeatures(all_features, &all_scans);
   }
   else {
@@ -272,26 +318,33 @@ void queryProcessCallback(const std_msgs::String& msg) {
   convertScansToImagesPadAndFixedBounds(all_scans);
 
   std_msgs::String directory_message;
-  directory_message.data = synth_type_;
+  if (synth_type_ == 0) {
+    directory_message.data = "FO";
+  }
+  else if (synth_type_ == 1) {
+    directory_message.data = "MC";
+  }
   directory_publisher_.publish(directory_message);
 
 }
 
 int main(int argc, char* argv[]) {
   if (argc < 4) {
-    printf("Usage: ./exec <synth_type (MC or FO)> <FOV> <max_range>");
+    printf("Usage: ./exec <synth_type (1=MC or 0=FO)> <FOV> <max_range>");
     fflush(stdout);
     exit(1);
   }
-  string synth_type_ = argv[1];
+  synth_type_ = atoi(argv[1]);
   FOV = atof(argv[2]); // Field of View of the laser
   max_range = atof(argv[3]);
 
   ros::init(argc, argv, "synthesyzer");
   ros::NodeHandle nh;
 
-  query_subscriber_ = nh.subscribe("QueryFilename", 1, queryProcessCallback);
+  scan_feature_subscriber_ = nh.subscribe("ScanFeature", 1, scanSelectionCallback);
   directory_publisher_ = nh.advertise<std_msgs::String>("DataDirectory", 1, true);
+
+  ros::spin();
 
   return 0;
 }

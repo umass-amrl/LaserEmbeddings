@@ -123,6 +123,9 @@ class TripletNet(nn.Module):
 #    target_b = torch.FloatTensor(1).fill_(1)
     dist_a = F.cosine_similarity(embedded_x, embedded_y) # cosine distance
     dist_b = F.cosine_similarity(embedded_x, embedded_z) # cosine distance
+#    print(dist_a)
+#    print(dist_b)
+#    print("\n")
     return dist_a, dist_b, embedded_x, embedded_y, embedded_z, recreated_x
 
 ############################## STATISTICS ##############################
@@ -165,7 +168,7 @@ class VisdomLinePlotter(object):
 
 ######################### THREE #########################
 
-def train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch):
+def train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch, margin):
   losses = AverageMeter()
   accs = AverageMeter()
   emb_norms = AverageMeter()
@@ -187,9 +190,9 @@ def train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch):
 
     # compute output
     # NOTE: reversing order of data because I'm not confident in changing down stream eval
-    dista, distb, embedded_x, embedded_y, embedded_z, reconstruction = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
-    # 1 means, dista should be larger than distb
-    target1 = torch.FloatTensor(dista.size()).fill_(1)
+    dista, distb, emb_x, emb_y, emb_z, reconstruction = tnet(data1n, data2n, data3n, data1r, data2r, data3r)
+    # -1 means, distb should be larger than dista
+    target1 = torch.FloatTensor(dista.size()).fill_(-1)
     target1 = Variable(target1)
     target1 = target1.cuda()
 
@@ -203,11 +206,16 @@ def train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch):
 
     loss_triplet = criterion1(dista, distb, target1)
     loss_reconstruction = torch.mean(criterion2(ds_scan, reconstruction))
-    loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
-    loss = 10.0 * loss_triplet + loss_reconstruction + 0.001 * loss_embedd
+    loss_embedd = emb_x.norm(2) + emb_y.norm(2) + emb_z.norm(2)
+    loss = 50.0 * loss_triplet + loss_reconstruction + 0.01 * loss_embedd
+
+    #print(50.0 * loss_triplet)
+    #print(loss_reconstruction)
+    #print(0.01 * loss_embedd)
+    #print(loss)
 
     # measure accuracy and record loss
-    acc = accuracy(dista, distb)
+    acc = accuracy(dista, distb, margin)
     losses.update(loss.data[0], data1n.size(0))
     accs.update(acc, data1n.size(0))
     emb_norms.update(loss_embedd.data[0]/3, data1n.size(0))
@@ -232,7 +240,7 @@ def train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch):
   plotter.plot('emb_norms', 'train', epoch, emb_norms.avg)
 
 
-def test3(test_loader, tnet, criterion, epoch):
+def test3(test_loader, tnet, criterion, epoch, margin):
   losses = AverageMeter()
   accs = AverageMeter()
 
@@ -250,7 +258,7 @@ def test3(test_loader, tnet, criterion, epoch):
 
     # compute output
     # NOTE: reversing order of data because I'm not confident in changing down stream eval
-    dista, distb, _, _, _, _ = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
+    dista, distb, _, _, _, _ = tnet(data1n, data2n, data3n, data1r, data2r, data3r)
     target = torch.FloatTensor(dista.size()).fill_(1)
     target = Variable(target)
     target = target.cuda()
@@ -258,7 +266,7 @@ def test3(test_loader, tnet, criterion, epoch):
     test_loss =  criterion(dista, distb, target).data[0]
 
     # measure accuracy and record loss
-    acc = accuracy(dista, distb)
+    acc = accuracy(dista, distb, margin)
     accs.update(acc, data1n.size(0))
     losses.update(test_loss, data1n.size(0))
 
@@ -268,10 +276,9 @@ def test3(test_loader, tnet, criterion, epoch):
   plotter.plot('loss', 'test', epoch, losses.avg)
   return accs.avg
 
-def accuracy(dista, distb):
-  margin = 0
-  pred = (dista - distb - margin).cpu().data
-  return (pred > 0).sum()*1.0/dista.size()[0]
+def accuracy(dista, distb, margin):
+  pred = (distb - dista - margin).cpu().data
+  return float((pred > 0).sum())/float(dista.size()[0])
 
 def save_checkpoint(state, is_best, filename):
   # Saves checkpoint to disk
@@ -348,17 +355,21 @@ def main():
     optimizer = optim.SGD(tnet.parameters(), lr=learning_rate, momentum=momentum)
     margin = 0.4
     criterion1 = torch.nn.MarginRankingLoss(margin=margin)
-    train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch)
+    train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch, margin)
     margin = 0.4
     criterion1 = torch.nn.MarginRankingLoss(margin=margin)
-    train3(corrupt_train_loader, tnet, criterion1, criterion2, optimizer, epoch)
+    train3(corrupt_train_loader, tnet, criterion1, criterion2, optimizer, epoch, margin)
     margin = 0.01
     criterion1 = torch.nn.MarginRankingLoss(margin=margin)
-    train3(objectified_train_loader, tnet, criterion1, criterion2, optimizer, epoch)
-    
-    # evaluate on validation set
-    acc = test3(test_loader, tnet, criterion1, epoch)
+    train3(objectified_train_loader, tnet, criterion1, criterion2, optimizer, epoch, margin)
 
+
+
+
+
+
+    # evaluate on validation set
+    acc = test3(test_loader, tnet, criterion1, epoch, margin)
     print('current acc: ')
     print(acc)
     print('best acc: ')

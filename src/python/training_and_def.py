@@ -59,7 +59,7 @@ import training_and_def_net3 as net3
 
 #TODO: LIST OF EXPERIMENTS
 
-embeddings_database = []
+#embeddings_database = []
 
 class Net3(nn.Module): #NOTE: 
   def __init__(self):
@@ -207,6 +207,9 @@ def writeEmbeddings(embeddings):
 def generateEmbeddings(test_set):
 
   #rawoutfile = open('scansasimages.txt', 'a')
+  #ni, r = test_set.getSpecificItem(0)
+  #ds_scan = n[0, 0,:]
+  #print(ds_scan)
 
   # switch to evaluation mode
   tnet.eval()
@@ -222,6 +225,12 @@ def generateEmbeddings(test_set):
     data2n, data2r = test_set.getSpecificItem(0)
     data3n, data3r = test_set.getSpecificItem(0)
     
+    data1n = data1n.unsqueeze(0)
+    data2n = data2n.unsqueeze(0)
+    data3n = data3n.unsqueeze(0)
+    data1r = data1r.unsqueeze(0)
+    data2r = data2r.unsqueeze(0)
+    data3r = data3r.unsqueeze(0)
     #print("scan in image form \n")
     #print(data1n[0, 0, 0, :].tolist())
     #rawscanimg = data1n[0, 0, 0, :].tolist()
@@ -241,7 +250,7 @@ def generateEmbeddings(test_set):
 
     # compute output
     # NOTE: reversing order of data because I'm not confident in changing down stream eval
-    _, _, embedded_1, _, _, _ = tnet(data1n, data3n, data2n, data1r, data3r, data2r)
+    _, _, embedded_1, _, _, _ = tnet(data1n, data2n, data3n, data1r, data2r, data3r)
 
     # write embeddings to text file
     embedded_1 = embedded_1.cpu()
@@ -264,7 +273,7 @@ def computeSubspaceDistance(a, b, basis_vectors, weights):
 ############################## TOP K ##############################
 
 def KNNOnEmbeddings(database, queries):
-    K = 10
+    K = 300
 
     query_results = []
     for idx in range(len(queries)):
@@ -340,6 +349,9 @@ def simpleQuery(query_embeddings):
     npqueryembed[i, :] = np.asarray(query_embeddings[i])
   embedding_mean = np.true_divide(embedding_sum, len(query_embeddings))
   final_query_embeddings.append(embedding_mean)
+
+  #print(embeddings_database[0])
+  #print(final_query_embeddings[0])
 
   query_results = KNNOnEmbeddings(embeddings_database, final_query_embeddings)
 
@@ -419,12 +431,20 @@ def loadNetwork():
 
 def loadEmbeddingDatabase():
   database_set = cptn.SpecialQuerySet()
-  global embeddings_database = generateEmbeddings(database_set)
+  global dn, dr
+  dn, dr = database_set.getSpecificItem(0)
+  global embeddings_database
+  embeddings_database = generateEmbeddings(database_set)
 
 def queryCallback(msg):
   rospy.loginfo(rospy.get_caller_id() + "I heard %s", msg.data)
   if msg.data == "FO":
     query_set = cptn.FeatureOnlyTestSet()
+    #qn, qr = query_set.getSpecificItem(0)
+    #d_scan = dn[0, 0, :]
+    #q_scan = qn[0, 0, :]
+    #print("difference")
+    #print(d_scan - q_scan)
     query_embeddings = generateEmbeddings(query_set)
     simpleQuery(query_embeddings)
   elif msg.data == "MC":
@@ -433,8 +453,12 @@ def queryCallback(msg):
     advancedQuery()
 
 def main():
-  global tnet = loadNetwork()
+  global tnet 
+  tnet = loadNetwork()
   loadEmbeddingDatabase()
+
+  print("database size:")
+  print(len(embeddings_database))
 
   rospy.init_node('QueryManager', anonymous=True)
   rospy.Subscriber("DataDirectory", String, queryCallback)
