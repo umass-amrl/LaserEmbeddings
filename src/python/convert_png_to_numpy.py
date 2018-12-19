@@ -2035,15 +2035,15 @@ def CurateTrainTest():
   normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
   transform = transforms.Compose([to_tensor, normalize])
 
-  #bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723],
-  #              ["UST-10LX/", "2016-04-17-20-34-16", 2332],
-  #              ["UST-10LX/", "2016-08-17-13-08-32", 2649],
-  #              ["UST-10LX/", "2016-08-17-13-16-56", 2832]]
+  bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723],
+                ["UST-10LX/", "2016-04-17-20-34-16", 2332],
+                ["UST-10LX/", "2016-08-17-13-08-32", 2649],
+                ["UST-10LX/", "2016-08-17-13-16-56", 2832]]
   
   #bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723],
   #              ["UST-10LX/", "2016-08-17-13-16-56", 2832]]
   
-  bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723]]
+  #bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723]]
 
 #  bdsl_train = [["UST-10LX/", "2016-08-17-12-48-06", 403], 
 #                ["UST-10LX/", "2016-08-17-12-56-32", 544], 
@@ -3798,7 +3798,7 @@ def CurateTrainTest():
 
   #TODO: better way to differentiate training and testing sets
   #bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
-  bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 33]]
+  bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 70]]
 
   laser_dataset_test = LaserDataset('../../laser_images/full_normalized/', bdsl_test, transform=transform)
 
@@ -3818,7 +3818,13 @@ def SpecialQuerySet():
 
   #bdsl_query = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
   #bdsl_query = [["UST-10LX/", "2016-04-17-20-34-16", 2332]]
-  bdsl_query = [["UST-10LX/", "2016-04-17-20-32-59", 2723]]
+  #bdsl_query = [["UST-10LX/", "2016-04-17-20-32-59", 2723],
+  #              ["UST-10LX/", "2016-04-17-20-34-16", 2332],
+  #              ["UST-10LX/", "2016-08-17-13-08-32", 2649],
+  #              ["UST-10LX/", "2016-08-17-13-16-56", 2832]]
+  
+
+  bdsl_query = [["UST-10LX/synthetic_composition/", "2016-08-17-13-18-08", 29547]]
   
   #bdsl_query = [["2016-08-17-12-48-06", 403],
   #              ["2016-08-17-12-56-32", 544],
@@ -3845,6 +3851,8 @@ def SpecialTestSet():
   transform = transforms.Compose([to_tensor, normalize])
 
   bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
+  
+  #bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
 
   #bdsl_test = [["UST-10LX/static_scenes/", "2018-04-08-15-27-32", 4427]]
   #bdsl_test = [["UST-10LX/static_scenes/", "2018-04-08-15-30-47", 8179]]
@@ -4096,7 +4104,10 @@ def CorruptedSets(sister_set):
                    ["", "2016-02-16-21-20-53", 9099],
                    ["", "2016-08-17-22-05-52", 67149]]
   """
-  corrupted_set = [["", "2016-04-17-20-32-59", 2723]]
+  corrupted_set = [["", "2016-04-17-20-32-59", 2723],
+                   ["", "2016-04-17-20-34-16", 2332],
+                   ["", "2016-08-17-13-08-32", 2649],
+                   ["", "2016-08-17-13-16-56", 2832]]
 
   #root_dirs = ["UST-10LX/Corrupted_Blur/", "UST-10LX/Corrupted_SaltPepper/", "UST-10LX/Corrupted_Humans/"]
   root_dirs = ["../../laser_images/full_normalized/UST-10LX/Corrupted_Blur/"]
@@ -4151,7 +4162,8 @@ class SyntheticObjectLaserDatasets(Dataset):
     file_a_mid = ""
     file_b_mid = ""
 
-    window_size = 5
+    #window_size = 5
+    window_size = 20
 
     a_idx = idx + 1 # idx is zero indexed and files are 1 indexed
     prev_seen = 0
@@ -4317,7 +4329,10 @@ def ObjectifiedSets(sister_set):
                      ["", "2016-02-16-21-20-53", 9099],
                      ["", "2016-08-17-22-05-52", 67149]]
   """
-  objectified_set = [["", "2016-04-17-20-32-59", 2723]]
+  objectified_set = [["", "2016-04-17-20-32-59", 2723],
+                     ["", "2016-04-17-20-34-16", 2332],
+                     ["", "2016-08-17-13-08-32", 2649],
+                     ["", "2016-08-17-13-16-56", 2832]]
 
   #root_dirs = ["UST-10LX/Corrupted_Blur/", "UST-10LX/Corrupted_SaltPepper/", "UST-10LX/Corrupted_Humans/"]
   root_dirs = ["../../laser_images/full_normalized/UST-10LX/Corrupted_Humans/"]

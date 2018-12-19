@@ -42,17 +42,31 @@ import training_and_def_net3 as net3
 #NOTE: EXPERIMENTAL PARAMS:
 
 # input shape / type (1d, 2d flat, 2d perdiodic rotation)
+
 # input size (downsampling rate)
+
 # input richness (single scan vs history of scans)
+
 # input noising (yes / no / how)
+
 # network structure (num layers, convolution vs max pooling vs fully connected, etc.)
+
 # dimensionality of output (embedding)
+
 # gradient descent methods (SGD, ADOM, Momentum, etc)
+
 # training hacks (dropout, batch size)
+
 # hyperparameters (learning rate, biases, initialization)
+
 # activation function (ReLU, tanh, sigmoid, etc.)
+
 # training example selection (selection of pairs, shuffling, presentation order, etc.)
+    # regular (time-based)
+    # noised
+    # objectified
 # loss function (L-2 norm, cosine distance, etc.)
+
 # 
 
 #TODO: improve training data selection
@@ -66,20 +80,17 @@ class Net3(nn.Module): #NOTE:
     super(Net3, self).__init__()
 
     # non-square kernel 
-    #self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, (0, 1))
-    #self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, (0, 2))
-    #self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, (0, 4))
-    #self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, (0, 8))
-    #self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, (0, 16))
-    #self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, (0, 32))
-    #self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, (0, 64))
-
-    #self.conv2 = nn.Conv2d(14, 8, 11, 1, 1)
-    #self.conv3 = nn.Conv2d(8, 16, 5, 1, 1)
-    #self.fc1 = nn.Linear(16 * 30 * 30, 256)
+    self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, (0, 1))
+    self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, (0, 2))
+    self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, (0, 4))
+    self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, (0, 8))
+    self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, (0, 16))
+    self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, (0, 32))
+    self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, (0, 64))
+    self.conv2 = nn.Conv2d(14, 8, 11, 1, 1)
+    self.conv3 = nn.Conv2d(8, 16, 5, 1, 1)
+    self.fc1 = nn.Linear(16 * 30 * 30, 256)
     self.fc2 = nn.Linear(256, 128)
-
-    #NOTE: small embeddings
     self.fc3 = nn.Linear(128, 64)
     #self.fc4 = nn.Linear(64, 32)
     #self.fc5 = nn.Linear(32, 64)
@@ -91,7 +102,7 @@ class Net3(nn.Module): #NOTE:
     #x = F.relu(self.fc5(emb))
     x = F.relu(self.fc6(emb))
     #print(x.shape)
-    x = F.sigmoid(self.fc7(x))
+    x = F.tanh(self.fc7(x))
 
     return x
 
@@ -113,6 +124,38 @@ class TripletNet(nn.Module):
     recreation = self.embeddingnet(emb)
     return recreation
 
+
+############################## LOADING STUFF ##############################
+
+def loadNetwork():
+  model = net3.Net3()
+  model = model.cuda()
+  tnet = net3.TripletNet(model)
+  tnet = tnet.cuda()
+
+  checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
+
+  if os.path.isfile(checkpoint_to_load):
+    print("=> loading checkpoint '{}'".format(checkpoint_to_load))
+    checkpoint = torch.load(checkpoint_to_load)
+    tnet.load_state_dict(checkpoint['state_dict'])
+    print("=> loaded checkpoint '{}' (epoch {})"
+            .format(checkpoint_to_load, checkpoint['epoch']))
+  else:
+    print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
+
+  n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
+  print('  + Number of params: {}'.format(n_parameters))
+
+  return tnet
+
+def loadEmbeddingDatabase():
+  database_set = cptn.SpecialQuerySet()
+  global dn, dr
+  dn, dr = database_set.getSpecificItem(0)
+  global embeddings_database
+  embeddings_database = generateEmbeddings(database_set)
+
 ############################## VISUALIZATION ##############################
 
 class VisdomLinePlotter(object):
@@ -133,22 +176,24 @@ class VisdomLinePlotter(object):
       self.viz.updateTrace(X=np.array([x]), Y=np.array([y]), env=self.env, win=self.plots[var_name], name=split_name)
 
 def visEmbeddingDecoder():
-  embeddings = []
-  infile = open('embeddings.txt', 'r')
-  for line in infile:
-    embedding_list = line.split()
-    embedding = np.array(embedding_list, dtype=np.float32)
-    embeddings.append(embedding)
+  #embeddings = []
+  #infile = open('embeddings.txt', 'r')
+  #for line in infile:
+  #  embedding_list = line.split()
+  #  embedding = np.array(embedding_list, dtype=np.float32)
+  #  embeddings.append(embedding)
 
-  """
+  
   k = 10
   interpolated_embeddings = []
-  for i in range(len(embeddings)-1):
-    embedding_diff = embeddings[i+1] - embeddings[i]
+  last = embeddings_database[-1]
+  for i in range(0, len(embeddings_database)-200, 200):
+    embedding_diff = np.asarray(embeddings_database[i+200]) - np.asarray(embeddings_database[i])
+    last = np.asarray(embeddings_database[i+200])
     for j in range(k):
-      interpolated_embeddings.append(embeddings[i] + float(j)/float(k) * embedding_diff)
-  interpolated_embeddings.append(embeddings[-1])
-  """
+      interpolated_embeddings.append(np.asarray(embeddings_database[i]) + float(j)/float(k) * embedding_diff)
+  interpolated_embeddings.append(last)
+
   model = Net3()
   model = model.cuda()
   tnet = TripletNet(model)
@@ -172,10 +217,12 @@ def visEmbeddingDecoder():
   print('  + Number of params: {}'.format(n_parameters))
 
   recreations = []
-  #for emb in interpolated_embeddings:
-  for emb in embeddings:
+  print(len(interpolated_embeddings))
+  for emb in interpolated_embeddings:
+  #for emb in embeddings:
     # turn training off
     tnet.eval()
+    emb = np.asarray(emb, dtype=np.float32)
     emb = Variable(torch.from_numpy(emb))
     emb = emb.cuda()
     recreation = tnet(emb)
@@ -406,36 +453,6 @@ def advancedQuery():
     for j in range(len(query_results[i])):
       print(query_results[i][j])
 
-
-def loadNetwork():
-  model = net3.Net3()
-  model = model.cuda()
-  tnet = net3.TripletNet(model)
-  tnet = tnet.cuda()
-
-  checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
-
-  if os.path.isfile(checkpoint_to_load):
-    print("=> loading checkpoint '{}'".format(checkpoint_to_load))
-    checkpoint = torch.load(checkpoint_to_load)
-    tnet.load_state_dict(checkpoint['state_dict'])
-    print("=> loaded checkpoint '{}' (epoch {})"
-            .format(checkpoint_to_load, checkpoint['epoch']))
-  else:
-    print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
-
-  n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
-  print('  + Number of params: {}'.format(n_parameters))
-
-  return tnet
-
-def loadEmbeddingDatabase():
-  database_set = cptn.SpecialQuerySet()
-  global dn, dr
-  dn, dr = database_set.getSpecificItem(0)
-  global embeddings_database
-  embeddings_database = generateEmbeddings(database_set)
-
 def queryCallback(msg):
   rospy.loginfo(rospy.get_caller_id() + "I heard %s", msg.data)
   if msg.data == "FO":
@@ -452,10 +469,14 @@ def queryCallback(msg):
     query_embeddings = generateEmbeddings(query_set)
     advancedQuery()
 
+
 def main():
   global tnet 
   tnet = loadNetwork()
   loadEmbeddingDatabase()
+
+  #NOTE: uncomment to turn on embedding interpolation - saved in recreations.txt
+  visEmbeddingDecoder()
 
   print("database size:")
   print(len(embeddings_database))

@@ -99,38 +99,93 @@ vector<ScanFeatureMetaData> getFeaturesFromText(string filename) {
 }
 
 
+
+
+  // Probably should be a feature that can be enabled by the type of query
+  // (eg. anywhere in the scan vs. on the left side)
+  //TODO: generate random location within the scan (optional, not doing right now)
+
+
+
+
+
+//TODO: try: 
+// tiling of feature
+// can use setminus? ie the remaining part of the scan?
+
 void generateFeatureOnlyScanFromFeatures(const vector<ScanFeatureMetaData> all_features, 
                                                vector<vector<float>>* all_scans) {
+
   //for // each feature // (only one feature at a time for now)
-  int num_rays = (all_features[0].ranges.size() * FOV) / 
-                 ((all_features[0].end_angle - all_features[0].start_angle) * (180.0 / M_PI));
+  int num_rays = all_features[0].ranges.size() *
+      (FOV / ((all_features[0].end_angle - all_features[0].start_angle) * (180.0 / M_PI)));
   float angular_res = FOV / float(num_rays);
   float scan_start_angle = -FOV / 2.0;
   std::cout << "ranges size: " << all_features[0].ranges.size() << std::endl;
   std::cout << "angular res: " << angular_res << std::endl;
   std::cout << "scan start: " << scan_start_angle << std::endl;
   std::cout << "num rays: " << num_rays << std::endl;
-  int feature_start_index = (scan_start_angle - (all_features[0].start_angle * (180.0/M_PI))) * angular_res;
+  int feature_start_index = ((all_features[0].start_angle * (180.0/M_PI)) - scan_start_angle) / angular_res;
   int feature_end_index = feature_start_index + all_features[0].ranges.size();
   std::cout << "start: " << feature_start_index << std::endl;
   std::cout << "end: " << feature_end_index << std::endl;
 
-  // Probably should be a feature that can be enabled by the type of query
-  // (eg. anywhere in the scan vs. on the left side)
-  //TODO: generate random location within the scan (optional, not doing right now)
-  vector<float> single_scan;
-  for (int i = 0; i < num_rays; ++i) { // each ray
-    if (i >= feature_start_index && i <= feature_end_index) {
-      single_scan.push_back(all_features[0].ranges[i - feature_start_index]);
+  //TODO: set as command line input
+  int scan_gen_type = 2;
+
+  if (scan_gen_type == 0) {
+    vector<float> single_scan;
+    for (int i = 0; i < num_rays; ++i) { // each ray
+      if (i >= feature_start_index && i <= feature_end_index) {
+        single_scan.push_back(all_features[0].ranges[i - feature_start_index]);
+      }
+      else {
+        // Set all depths to zero if not part of feature
+        single_scan.push_back(0.0);
+      }
     }
-    else {
-      // Set all depths to zero if not part of feature
-      single_scan.push_back(0.0);
-    }
+    all_scans->push_back(single_scan);
   }
-  //all_scans->push_back(single_scan);
-  all_scans->push_back(all_features[0].ranges);
+  else if (scan_gen_type == 1) {
+    vector<float> single_scan;
+    for (int i = 0; i < num_rays; ++i) { // each ray
+      if (i >= feature_start_index && i <= feature_end_index) {
+        single_scan.push_back(all_features[0].ranges[i - feature_start_index]);
+      }
+      else {
+        // Set all depths to max range if not part of feature
+        single_scan.push_back(max_range);
+      }
+    }
+    all_scans->push_back(single_scan);
+  }
+  else if (scan_gen_type == 2) {
+    //TODO: this always tiles from start to end... should tiling be repeated for
+    //every possible start point? (feature_size times)
+    vector<float> single_scan;
+    size_t feature_size = all_features[0].ranges.size();
+    for (int i = 0; i < num_rays; ++i) { // each ray
+      int feature_index = i % feature_size;
+      single_scan.push_back(all_features[0].ranges[feature_index]);
+    }
+    all_scans->push_back(single_scan);
+  }
 }
+
+
+//TODO: if more than one query scan is generated, can do statistics and generate
+//a single query, OR aggregate queries and pick frequently occuring scans.
+
+
+
+
+// random sample
+//TODO: try:
+// stepwise 0 to max
+
+//   all of above but with variable feature depth
+//   all of above but with variable feature angle
+//   all of above but with both variable depth and variable angle
 
 void generateMonteCarloScansFromFeatures(const vector<ScanFeatureMetaData> all_features, 
                                                vector<vector<float>>* all_scans) {
@@ -164,6 +219,15 @@ void generateMonteCarloScansFromFeatures(const vector<ScanFeatureMetaData> all_f
     all_scans->push_back(single_scan);
   }
 }
+
+
+
+
+
+
+
+
+
 
 
 void writeScans(vector<vector<float>>* all_scans) {
@@ -330,7 +394,7 @@ void scanSelectionCallback(const gui_msgs::ScanFeatureMsg& msg) {
 
 int main(int argc, char* argv[]) {
   if (argc < 4) {
-    printf("Usage: ./exec <synth_type (1=MC or 0=FO)> <FOV> <max_range>");
+    printf("Usage: ./exec <synth_type (1=MonteCarlo or 0=FeatureOnly)> <FOV> <max_range>");
     fflush(stdout);
     exit(1);
   }

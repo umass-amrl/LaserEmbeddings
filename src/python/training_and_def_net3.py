@@ -37,20 +37,18 @@ class Net3(nn.Module): #NOTE:
     #TODO: Dropout?
 
     # non-square kernel 
-    #self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, (0, 1))
-    #self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, (0, 2))
-    #self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, (0, 4))
-    #self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, (0, 8))
-    #self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, (0, 16))
-    #self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, (0, 32))
-    #self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, (0, 64))
+    self.conv1_1 = nn.Conv2d(1, 1, (1, 3), 1, (0, 1))
+    self.conv1_2 = nn.Conv2d(1, 1, (1, 5), 1, (0, 2))
+    self.conv1_3 = nn.Conv2d(1, 1, (1, 9), 1, (0, 4))
+    self.conv1_4 = nn.Conv2d(1, 1, (1, 17), 1, (0, 8))
+    self.conv1_5 = nn.Conv2d(1, 1, (1, 33), 1, (0, 16))
+    self.conv1_6 = nn.Conv2d(1, 1, (1, 65), 1, (0, 32))
+    self.conv1_7 = nn.Conv2d(1, 1, (1, 129), 1, (0, 64))
+    self.conv2 = nn.Conv2d(14, 8, 11, 1, 1)
+    self.conv3 = nn.Conv2d(8, 16, 5, 1, 1)
+    self.fc1 = nn.Linear(16 * 30 * 30, 256)
 
-    #self.conv2 = nn.Conv2d(14, 8, 11, 1, 1)
-    #self.conv3 = nn.Conv2d(8, 16, 5, 1, 1)
-    #self.fc1 = nn.Linear(16 * 30 * 30, 256)
     self.fc2 = nn.Linear(256, 128)
-
-    #NOTE: small embeddings
     self.fc3 = nn.Linear(128, 64)
     #self.fc4 = nn.Linear(64, 32)
     #self.fc5 = nn.Linear(32, 64)
@@ -59,45 +57,41 @@ class Net3(nn.Module): #NOTE:
 
 
   def forward(self, xn, xr):
-    #xn1 = F.relu(self.conv1_1(xn))
-    #xr1 = F.relu(self.conv1_1(xr))
-    #xn2 = F.relu(self.conv1_2(xn))
-    #xr2 = F.relu(self.conv1_2(xr))
-    #xn3 = F.relu(self.conv1_3(xn))
-    #xr3 = F.relu(self.conv1_3(xr))
-    #xn4 = F.relu(self.conv1_4(xn))
-    #xr4 = F.relu(self.conv1_4(xr))
-    #xn5 = F.relu(self.conv1_5(xn))
-    #xr5 = F.relu(self.conv1_5(xr))
-    #xn6 = F.relu(self.conv1_6(xn))
-    #xr6 = F.relu(self.conv1_6(xr))
-    #xn7 = F.relu(self.conv1_7(xn))
-    #xr7 = F.relu(self.conv1_7(xr))
+    L = []
+    xn1 = F.relu(self.conv1_1(xn))
+    xr1 = F.relu(self.conv1_1(xr))
+    xn2 = F.relu(self.conv1_2(xn))
+    xr2 = F.relu(self.conv1_2(xr))
+    xn3 = F.relu(self.conv1_3(xn))
+    xr3 = F.relu(self.conv1_3(xr))
+    xn4 = F.relu(self.conv1_4(xn))
+    xr4 = F.relu(self.conv1_4(xr))
+    xn5 = F.relu(self.conv1_5(xn))
+    xr5 = F.relu(self.conv1_5(xr))
+    xn6 = F.relu(self.conv1_6(xn))
+    xr6 = F.relu(self.conv1_6(xr))
+    xn7 = F.relu(self.conv1_7(xn))
+    xr7 = F.relu(self.conv1_7(xr))
+    
+    outputs = [xn1, xr1, xn2, xr2, xn3, xr3, xn4, xr4, xn5, xr5, xn6, xr6, xn7, xr7]
+    x = torch.cat(outputs, 1)
+    x = F.max_pool2d(F.relu(self.conv2(x)), (4, 4))
+    x = F.max_pool2d(F.relu(self.conv3(x)), (2, 2))
+    x = x.view(-1, self.num_flat_features(x))
+    x = F.relu(self.fc1(x))
+    #x = xn[:, 0, 0, :]
 
-    #outputs = [xn1, xr1, xn2, xr2, xn3, xr3, xn4, xr4, xn5, xr5, xn6, xr6, xn7, xr7]
-    #x = torch.cat(outputs, 1)
-
-    #x = F.max_pool2d(F.relu(self.conv2(x)), (4, 4))
-    #x = F.max_pool2d(F.relu(self.conv3(x)), (2, 2))
-    #x = x.view(-1, self.num_flat_features(x))
-    #x = F.relu(self.fc1(x))
-    #print(xn.shape)
-    x = xn[:, 0, 0, :]
-    #x = xn[0, 0, 0, :]
     x = F.relu(self.fc2(x))
     x = F.relu(self.fc3(x))
-
     emb = x
-    #NOTE: small embeddings
-    #emb = self.fc4(x)
 
     #x = F.relu(self.fc4(x))
     #x = F.relu(self.fc5(x))
+
     x = F.relu(self.fc6(x))
-    #x = F.sigmoid(self.fc7(x))
     x = F.tanh(self.fc7(x))
 
-    return emb, x
+    return emb, x, L
 
   def num_flat_features(self, x):
     size = x.size()[1:]  # all dimensions except the batch dimension
@@ -114,9 +108,9 @@ class TripletNet(nn.Module):
     self.embeddingnet = embeddingnet
 
   def forward(self, xn, xr, yn, yr, zn, zr):
-    embedded_x, recreated_x = self.embeddingnet(xn, xr)
-    embedded_y, recreated_y = self.embeddingnet(yn, yr)
-    embedded_z, recreated_z = self.embeddingnet(zn, zr)
+    embedded_x, recreated_x, _ = self.embeddingnet(xn, xr)
+    embedded_y, recreated_y, _ = self.embeddingnet(yn, yr)
+    embedded_z, recreated_z, _ = self.embeddingnet(zn, zr)
     #dist_a = F.pairwise_distance(embedded_x, embedded_y, 2) # L-2 norm
     #dist_b = F.pairwise_distance(embedded_x, embedded_z, 2) # L-2 norm
 #    target_a = torch.FloatTensor(1).fill_(1)
@@ -189,7 +183,7 @@ def train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch, margin)
     data3r = data3r.cuda()
 
     # compute output
-    # NOTE: reversing order of data because I'm not confident in changing down stream eval
+    # dista 
     dista, distb, emb_x, emb_y, emb_z, reconstruction = tnet(data1n, data2n, data3n, data1r, data2r, data3r)
     # -1 means, distb should be larger than dista
     target1 = torch.FloatTensor(dista.size()).fill_(-1)
@@ -207,7 +201,7 @@ def train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch, margin)
     loss_triplet = criterion1(dista, distb, target1)
     loss_reconstruction = torch.mean(criterion2(ds_scan, reconstruction))
     loss_embedd = emb_x.norm(2) + emb_y.norm(2) + emb_z.norm(2)
-    loss = 50.0 * loss_triplet + loss_reconstruction + 0.01 * loss_embedd
+    loss = 50.0 * loss_triplet + loss_reconstruction + 0.001 * loss_embedd
 
     #print(50.0 * loss_triplet)
     #print(loss_reconstruction)
@@ -259,7 +253,7 @@ def test3(test_loader, tnet, criterion, epoch, margin):
     # compute output
     # NOTE: reversing order of data because I'm not confident in changing down stream eval
     dista, distb, _, _, _, _ = tnet(data1n, data2n, data3n, data1r, data2r, data3r)
-    target = torch.FloatTensor(dista.size()).fill_(1)
+    target = torch.FloatTensor(dista.size()).fill_(-1)
     target = Variable(target)
     target = target.cuda()
 
@@ -311,7 +305,7 @@ def main():
   tnet = tnet.cuda()
 
   start_epoch = 1
-  resume = False
+  resume = True
   checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
   best_acc = 0.0
 
@@ -329,9 +323,11 @@ def main():
       print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
 
   #margin = 1
-  margin = 0.4
+  margin1a = 0.4
+  margin1b = 0.01
   #learning_rate = 0.001
   #init_learning_rate = 0.005
+  #init_learning_rate = 0.003
   init_learning_rate = 0.001
   momentum = 0.9
   #epochs = 20
@@ -339,7 +335,8 @@ def main():
   epochs = 400
 
   #NOTE: For net 3
-  criterion1 = torch.nn.MarginRankingLoss(margin=margin)
+  criterion1a = torch.nn.MarginRankingLoss(margin=margin1a)
+  criterion1b = torch.nn.MarginRankingLoss(margin=margin1b)
   #criterion1 = torch.nn.CosineEmbeddingLoss(margin=margin)
   #criterion2 = torch.nn.PairwiseDistance(p=2)
   criterion2 = torch.nn.PairwiseDistance(p=1)
@@ -353,15 +350,9 @@ def main():
     learning_rate = init_learning_rate * 0.99**epoch
     print("learning rate: '{}'".format(learning_rate))
     optimizer = optim.SGD(tnet.parameters(), lr=learning_rate, momentum=momentum)
-    margin = 0.4
-    criterion1 = torch.nn.MarginRankingLoss(margin=margin)
-    train3(train_loader, tnet, criterion1, criterion2, optimizer, epoch, margin)
-    margin = 0.4
-    criterion1 = torch.nn.MarginRankingLoss(margin=margin)
-    train3(corrupt_train_loader, tnet, criterion1, criterion2, optimizer, epoch, margin)
-    margin = 0.01
-    criterion1 = torch.nn.MarginRankingLoss(margin=margin)
-    train3(objectified_train_loader, tnet, criterion1, criterion2, optimizer, epoch, margin)
+    train3(train_loader, tnet, criterion1a, criterion2, optimizer, epoch, margin1a)
+    train3(corrupt_train_loader, tnet, criterion1a, criterion2, optimizer, epoch, margin1a)
+    train3(objectified_train_loader, tnet, criterion1b, criterion2, optimizer, epoch, margin1b)
 
 
 
@@ -369,7 +360,7 @@ def main():
 
 
     # evaluate on validation set
-    acc = test3(test_loader, tnet, criterion1, epoch, margin)
+    acc = test3(test_loader, tnet, criterion1a, epoch, margin1a)
     print('current acc: ')
     print(acc)
     print('best acc: ')

@@ -34,13 +34,15 @@ ros::Publisher selection_publisher_;
 gui_msgs::LidarDisplayMsg display_message_;
 gui_msgs::ScanFeatureMsg selection_message_;
 
+vector<string> bag_names_;
 string bag_name_;
 vector<vector<float>> all_scans_;
 vector<vector<float>> all_scans_sidekick_;
 
 int current_view_ = 1;
 vector<int> id_in_progress_;
-bool viewing_recreation_ = true;
+//bool viewing_recreation_ = true;
+bool viewing_recreation_ = false;
 bool normalized_ = false;
 //bool normalized_ = true;
 bool side_by_side_viewing_ = false;
@@ -58,6 +60,9 @@ void getScansFromBag() {
   vector<string> topics;
   string kCobotLaserTopic = "/Cobot/Laser";
   topics.push_back(kCobotLaserTopic);
+
+
+
 
   printf("Reading bag file..."); fflush(stdout);
   rosbag::View view(bag, rosbag::TopicQuery(topics));
@@ -167,6 +172,13 @@ void saveScanFeature(string filename) {
   std::ofstream outfile;
   outfile.open(filename, std::ios_base::app);
   
+
+  for (size_t i = 0; i < scan_feature_.ranges.size(); ++i) {
+    std::cout << scan_feature_.ranges[i] << " ";
+  }
+  std::cout << std::endl;
+
+  //TODO: make bag name the actual bag name when there are multiple bags named
   // bag_name_, current_view_-1, type, start_angle, end_angle, range[0], ..., range[n]
   outfile << bag_name_ << " " << current_view_ - 1 << " " 
           << scan_feature_.type << " " << scan_feature_.start_angle << " " << scan_feature_.end_angle;
@@ -364,9 +376,10 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
 }
 
 void getScansFromTxt() {
-  std::string line;
-  std::ifstream infile("CorruptionQuality.txt");
+  //std::ifstream infile("CorruptionQuality.txt");
+  std::ifstream infile("RawSynthScans.txt");
 
+  std::string line;
   while (std::getline(infile, line)) {
     std::istringstream iss(line);
     float value;
@@ -374,29 +387,32 @@ void getScansFromTxt() {
     while (iss >> value) {
       single_scan.push_back(value);
     }
-    std::cout << "push back" << single_scan.size() << std::endl;
+    //std::cout << "push back" << single_scan.size() << std::endl;
     all_scans_.push_back(single_scan);
   }
-  vector<vector<float>> normal;
-  vector<vector<float>> corrupted;
-  for (size_t i = 0; i < all_scans_.size(); ++i) {
-    if (i < (all_scans_.size()/2)) {
-      normal.push_back(all_scans_[i]);
+
+  if (false) { //turn to true if you want to collate corrupted vs non-currupted scans
+    vector<vector<float>> normal;
+    vector<vector<float>> corrupted;
+    for (size_t i = 0; i < all_scans_.size(); ++i) {
+      if (i < (all_scans_.size()/2)) {
+        normal.push_back(all_scans_[i]);
+      }
+      else {
+        corrupted.push_back(all_scans_[i]);
+      }
     }
-    else {
-      corrupted.push_back(all_scans_[i]);
+    all_scans_.clear();
+    for (size_t i = 0; i < normal.size(); ++i) {
+      all_scans_.push_back(normal[i]);
+      all_scans_.push_back(corrupted[i]);
     }
-  }
-  all_scans_.clear();
-  for (size_t i = 0; i < normal.size(); ++i) {
-    all_scans_.push_back(normal[i]);
-    all_scans_.push_back(corrupted[i]);
   }
 }
 
 void getDownsampledScansFromTxt() {
   std::string line;
-  std::ifstream infile("src/python/recreations.txt");
+  std::ifstream infile("../src/python/recreations.txt");
   //std::ifstream infile("src/python/scansasimages.txt");
   //std::ifstream infile("downsampledscans.txt");
 
@@ -439,9 +455,14 @@ int main(int argc, char* argv[]) {
     std::cout << "Need bag name..." << std::endl;
     return 1;
   }
-  bag_name_ = argv[1];
-  getScansFromBag();
-  //getScansFromTxt();
+//  for (int i = 1; i < argc; ++i) {
+//  //  bag_names_.push_back(argv[i]);
+//    bag_name_ = argv[i];
+//    getScansFromBag();
+//  }
+
+  getScansFromTxt();
+
   //getDownsampledScansFromTxt();
   //getSideBySide();
   std::cout << "loaded" << std::endl;
