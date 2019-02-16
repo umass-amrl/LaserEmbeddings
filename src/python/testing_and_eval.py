@@ -390,25 +390,16 @@ def generateScanRecreationsFromEmbeddings(embeddings, model):
 
 ############################## LOADING STUFF ##############################
 
-def loadNetwork():
-  model = VAE()
-  #model = StackedAutoEncoder()
-  #model = ConvNet()
-  #model = Net3()
-  #model = Netnet()
+def loadNetwork(model):
   model = model.cuda()
-  tnet = TripletNet(model)
-  tnet = tnet.cuda()
 
   #checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
-  #checkpoint_to_load='model_checkpoints/archive/Natural/Basic_AE_4000e_05rot_0flip_0feat/checkpoint3707.pth.tar'
-  #checkpoint_to_load = 'model_checkpoints/current/checkpoint819.pth.tar'
   checkpoint_to_load = 'model_checkpoints/current/checkpoint306.pth.tar'
 
   if os.path.isfile(checkpoint_to_load):
     print("=> loading checkpoint '{}'".format(checkpoint_to_load))
     checkpoint = torch.load(checkpoint_to_load)
-    tnet.load_state_dict(checkpoint['state_dict'])
+    model.load_state_dict(checkpoint['state_dict'])
     print("=> loaded checkpoint '{}' (epoch {})"
             .format(checkpoint_to_load, checkpoint['epoch']))
   else:
@@ -417,10 +408,7 @@ def loadNetwork():
   n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
   print('  + Number of params: {}'.format(n_parameters))
 
-  return tnet
-
-
-#TODO: load decoder?
+  return model
 
 def loadScansFromBag(bag_file):
   bag = rosbag.Bag(bag_file)
@@ -447,7 +435,9 @@ def main():
     mode = int(sys.argv[2])
 
   #TODO: pass in arg for which network to load
-  model = loadNetwork()
+  model = VAE()
+  model = SimNet()
+  model = loadNetwork(model)
 
   #TODO: pass in args for which dataset to create
   test_set = cptn.SpecialTestSet()
