@@ -1835,7 +1835,7 @@ from torchvision import utils
 
 
 
-class LaserDataset(Dataset):
+class LaserDatasetOLD(Dataset):
   """Laser dataset."""
 
   def __init__(self, root_dir, bag_dates_scan_lengths, transform=None):
@@ -2045,7 +2045,7 @@ def LoadScansFromText(filename):
       print(len(all_scans))
   return all_scans
 
-def CurateTrainTest():
+def CurateTrainTestOLD():
 
   to_tensor = transforms.ToTensor()
   normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -2882,3 +2882,159 @@ def CrossedOverSets():
   test_loader = torch.utils.data.DataLoader(crossover_dataset_test, batch_size=4, shuffle=False)
 
   return train_loader, test_loader
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#TODO: apply any Gaussian blur, S&P, rotation, Flip, 
+#TODO: Subset selection (PRIORITY)
+class LaserDataset(Dataset):
+  """Laser dataset."""
+
+  def __init__(self, root_dir, bag_dates_scan_lengths, transform=None):
+    """
+    Args:
+      bag_dates... ((N, 3) array): Parent dirs, dates, and scan lengths.
+      root_dir (string): Directory with all the images.
+      transform (callable, optional): Optional transform to be applied on a sample.
+    """
+    self.root_dir = root_dir
+    self.transform = transform
+    self.record = bag_dates_scan_lengths
+    total_scans = 0
+    for i in range(len(bag_dates_scan_lengths)):
+      #print(bag_dates_scan_lengths[i][0]+bag_dates_scan_lengths[i][1])
+      total_scans = total_scans + bag_dates_scan_lengths[i][2]
+
+    self.size = total_scans
+
+  def PNGtoNPA(self, file_name):
+    im = cv2.imread(file_name)
+    return im
+
+  def __len__(self):
+    return self.size
+
+  def __getitem__(self, idx):
+    file_base = ""
+    file_mid = ""
+
+    idx = idx + 1 # idx is zero indexed and files are 1 indexed
+    prev_seen = 0
+    seen = 0
+    record_idx = 0
+    done = False
+    while not done:
+      seen = seen + self.record[record_idx][2]
+      if seen >= idx:
+        done = True
+      else:
+        record_idx = record_idx + 1
+
+      if done:
+        inner_addr = idx - prev_seen
+        file_base = self.root_dir+self.record[record_idx][0]+self.record[record_idx][1]+"/"
+        file_mid = self.record[record_idx][1]+"_"+str(inner_addr)
+
+      prev_seen = seen
+
+    scan = self.PNGtoNPA(file_base+file_mid+".png")
+    if self.transform:
+      scan = self.transform(scan)
+
+    scan = scan[0, :, :]
+    scan = scan.unsqueeze(0)
+
+    return scan
+
+
+#TODO: rewrite for new data base structure
+  def getSpecificItem(self, idx):
+    file_base = ""
+    file_mid = ""
+
+    idx = idx + 1 # idx is zero indexed and files are 1 indexed
+    prev_seen = 0
+    seen = 0
+    record_idx = 0
+    done = False
+    while not done:
+      seen = seen + self.record[record_idx][2]
+      if seen >= idx:
+        done = True
+      else:
+        record_idx = record_idx + 1
+
+      if done:
+        inner_addr = idx - prev_seen
+        file_base = self.root_dir+self.record[record_idx][0]+self.record[record_idx][1]+"/"
+        file_mid = self.record[record_idx][1]+"_"+str(inner_addr)
+
+      prev_seen = seen
+
+    scan = self.PNGtoNPA(file_base+file_mid+".png")
+    if self.transform:
+      scan = self.transform(scan)
+
+    scan = scan[0, :, :]
+    scan = scan.unsqueeze(0)
+
+    return scan
+
+#TODO: rewrite for new data base structure
+  def getAddress(self, idx):
+    return self.record[idx]
+
+
+
+def CurateTrainTest():
+
+  to_tensor = transforms.ToTensor()
+  normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+  transform = transforms.Compose([to_tensor, normalize])
+
+  bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723]]
+
+  laser_dataset_train = LaserDataset('../../laser_images/cartesian/', bdsl_train, transform=transform)
+
+  bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 64]]
+
+  laser_dataset_test = LaserDataset('../../laser_images/cartesian/', bdsl_test, transform=transform)
+
+  print("Training dataset size: ")
+  print(len(laser_dataset_train))
+  print("Testing dataset size: ")
+  print(len(laser_dataset_test))
+
+  #train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=16, shuffle=True)
+  #test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
+
+  #return train_loader, test_loader
+  return laser_dataset_train, laser_dataset_test

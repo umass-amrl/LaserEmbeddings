@@ -163,6 +163,9 @@ def SubspaceKNNOnEmbeddings(database, queries, basis_vectors, weights):
 
     return query_results
 
+def SimNetOnEmbeddings():
+  print("soon")
+
 ############################## QUERY TYPES ##############################
 
 def simpleQuery(query_embeddings):

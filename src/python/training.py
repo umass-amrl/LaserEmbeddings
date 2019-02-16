@@ -203,6 +203,8 @@ def loadNetwork(model):
   model = model.cuda()
 
   checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
+  epoch = 1
+  best_acc = 0.0
 
   if os.path.isfile(checkpoint_to_load):
     print("=> loading checkpoint '{}'".format(checkpoint_to_load))
@@ -215,7 +217,7 @@ def loadNetwork(model):
   else:
     print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
 
-  n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
+  n_parameters = sum([p.data.nelement() for p in model.parameters()])
   print('  + Number of params: {}'.format(n_parameters))
 
   return model, epoch, best_acc
@@ -227,24 +229,13 @@ def main():
   #plotter = VisdomLinePlotter(env_name="plooter")
   #plotter = VisdomLinePlotter()
 
-  laser_dataset_train, laser_dataset_test = cptn.CurateTrainTest()
-  #train_loader, laser_dataset_test = cptn.CurateTrainTest()
-  #train_loader, test_loader = cptn.CrossedOverSets()
-  train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=16, shuffle=True)
-  #train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=256, shuffle=True)
-  test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
-  #test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=64, shuffle=False)
-
-  #corrupt_train_loader = cptn.CorruptedSets(laser_dataset_train)
-  #objectified_train_loader = cptn.ObjectifiedSets(laser_dataset_train)
-
-
-  #TODO: get datasets sorted out
-
-
+  #TODO: command line arg to switch between training VAE and training simnet
   model = VAE()
-  model = SimNet()
-  model = model.cuda()
+  #model = SimNet()
+
+  laser_dataset_train, laser_dataset_test = cptn.CurateTrainTest()
+  train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=16, shuffle=True)
+  test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
 
   start_epoch = 1
   resume = True
@@ -253,13 +244,12 @@ def main():
   # optionally resume from a checkpoint
   if resume:
     model, star_epoch, best_acc = loadNetwork(model)
-  n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
-  print('  + Number of params: {}'.format(n_parameters))
+  model = model.cuda()
 
   #learning_rate = 0.001
   #momentum = 0.9
   #optimizer = optim.SGD(tnet.parameters(), lr=learning_rate, momentum=momentum)
-  optimizer = optim.Adam(tnet.parameters())
+  optimizer = optim.Adam(model.parameters())
 
   #TODO: sim ranking loss
 
@@ -287,7 +277,6 @@ def main():
     shouldSave(is_least_lossy_train, is_least_lossy_test)
 
 if __name__ == '__main__':
-  print ("starting")
   main()
   print ("donzo")
 
