@@ -131,20 +131,34 @@ void generateFeatureOnlyScanFromFeatures(const vector<ScanFeatureMetaData> all_f
   std::cout << "end: " << feature_end_index << std::endl;
 
   //TODO: set as command line input
-  int scan_gen_type = 2;
+  int scan_gen_type = 0;
 
   if (scan_gen_type == 0) {
     vector<float> single_scan;
-    for (int i = 0; i < num_rays; ++i) { // each ray
-      if (i >= feature_start_index && i <= feature_end_index) {
-        single_scan.push_back(all_features[0].ranges[i - feature_start_index]);
+    for (int k = 0; k < 11; ++k) {
+      single_scan.clear();
+      for (int i = 0; i < num_rays; ++i) { // each ray
+        if (i >= feature_start_index && i <= feature_end_index) {
+          single_scan.push_back(all_features[0].ranges[i - feature_start_index]);
+        }
+        else {
+          // Set all depths to zero if not part of feature
+          single_scan.push_back((float(k)/10.0) * max_range);
+          //single_scan.push_back(0.0);
+        }
       }
-      else {
-        // Set all depths to zero if not part of feature
-        single_scan.push_back(0.0);
-      }
+      all_scans->push_back(single_scan);
     }
-    all_scans->push_back(single_scan);
+   // all_scans->push_back(single_scan);
+   // for (int k = 1; k < 11; ++k) {
+     // single_scan.clear();
+      //for (int i = 0; i < num_rays; ++i) { // each ray
+          // Set all depths to zero
+          //single_scan.push_back(0.0);
+      //    single_scan.push_back((float(k)/10.0) * max_range);
+     // }
+      //all_scans->push_back(single_scan);
+    //}
   }
   else if (scan_gen_type == 1) {
     vector<float> single_scan;
@@ -156,6 +170,12 @@ void generateFeatureOnlyScanFromFeatures(const vector<ScanFeatureMetaData> all_f
         // Set all depths to max range if not part of feature
         single_scan.push_back(max_range);
       }
+    }
+    all_scans->push_back(single_scan);
+    single_scan.clear();
+    for (int i = 0; i < num_rays; ++i) { // each ray
+        // Set all depths to max
+        single_scan.push_back(max_range);
     }
     all_scans->push_back(single_scan);
   }

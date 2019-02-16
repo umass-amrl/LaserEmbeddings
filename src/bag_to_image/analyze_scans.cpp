@@ -5,6 +5,7 @@
 #include <sstream>
 #include <Eigen/Geometry>
 #include <Eigen/Dense>
+#include <CImg.h>
 #include "ros/ros.h"
 #include "ros/package.h"
 #include "rosbag/bag.h"
@@ -20,6 +21,7 @@
 
 using std::string;
 using std::vector;
+using Eigen::Vector2f;
 
 //TODO: Set up to be run via scripts
 
@@ -37,16 +39,16 @@ gui_msgs::ScanFeatureMsg selection_message_;
 vector<string> bag_names_;
 string bag_name_;
 vector<vector<float>> all_scans_;
-vector<vector<float>> all_scans_sidekick_;
+vector<vector<float>> all_scans_sidekick_1;
+vector<vector<float>> all_scans_sidekick_2;
 
 int current_view_ = 1;
 vector<int> id_in_progress_;
-//bool viewing_recreation_ = true;
-bool viewing_recreation_ = false;
 bool normalized_ = false;
-//bool normalized_ = true;
 bool side_by_side_viewing_ = false;
 
+float start_angle_ = -135.0;
+float field_of_view_ = 270.0;
 float min_range = 0.0;    // meters
 float max_range = 10.0;   // meters
 float angular_res = 0.25; // degrees
@@ -60,9 +62,6 @@ void getScansFromBag() {
   vector<string> topics;
   string kCobotLaserTopic = "/Cobot/Laser";
   topics.push_back(kCobotLaserTopic);
-
-
-
 
   printf("Reading bag file..."); fflush(stdout);
   rosbag::View view(bag, rosbag::TopicQuery(topics));
@@ -108,12 +107,15 @@ void pubScanFeature() {
 void calculatePoints(const float start_angle, const float angular_res,
                      const Eigen::Vector2f origin, const vector<float> scan) {
   for (size_t i = 0; i < scan.size(); ++i) {
-    float angle = (start_angle + angular_res * i) * (M_PI / 180.0);
-    Eigen::Rotation2Df R(angle);
-    Eigen::Vector2f x(scan[i], 0.0);
-    Eigen::Vector2f p = R * x + origin;
-    display_message_.points_x.push_back(p(0));
-    display_message_.points_y.push_back(p(1));
+    //if (true) {
+    if (scan[i] < 0.98*max_range) {
+      float angle = (start_angle + angular_res * i) * (M_PI / 180.0);
+      Eigen::Rotation2Df R(angle);
+      Eigen::Vector2f x(scan[i], 0.0);
+      Eigen::Vector2f p = R * x + origin;
+      display_message_.points_x.push_back(p(0));
+      display_message_.points_y.push_back(p(1));
+    }
   }
 }
 
@@ -138,16 +140,20 @@ void pubScan() {
   }
   else {
     vector<float> scan1 = all_scans_[current_view_ - 1];
-    vector<float> scan2 = all_scans_sidekick_[current_view_ - 1];
+    vector<float> scan2 = all_scans_sidekick_1[current_view_ - 1];
+    //vector<float> scan3 = all_scans_sidekick_2[current_view_ - 1];
     Eigen::Vector2f origin1(-12.0, 0.0);
     Eigen::Vector2f origin2(12.0, 0.0);
+    //Eigen::Vector2f origin3(0.0, 12.0);
     float start_angle1 = -135.0;
-    float start_angle2 = -180.0;
+    float start_angle2 = -135.0;
+    //float start_angle3 = -180.0;
     float angular_res1 = 270.0 / float(scan1.size());
-    //float angular_res2 = 360.0 / float(scan2.size());
-    float angular_res2 = 360.0 / float(scan2.size());
+    float angular_res2 = 270.0 / float(scan2.size());
+    //float angular_res3 = 360.0 / float(scan3.size());
     calculatePoints(start_angle1, angular_res1, origin1, scan1);
     calculatePoints(start_angle2, angular_res2, origin2, scan2);
+    //calculatePoints(start_angle3, angular_res3, origin3, scan3);
   }
 
   display_publisher_.publish(display_message_);
@@ -238,6 +244,10 @@ void MouseClickCallback(const gui_msgs::GuiMouseClickEvent& msg) {
   Eigen::Vector3f v1(msg.mouse_down.x, msg.mouse_down.y, 0.0);
   float th2 = atan2(msg.mouse_up.y, msg.mouse_up.x);
   Eigen::Vector3f v2(msg.mouse_up.x, msg.mouse_up.y, 0.0);
+
+  //TODO: change start and end angle to index based system for better
+  //reproducability
+
   if (static_cast<uint32_t>(msg.modifiers) == 1 ||
       static_cast<uint32_t>(msg.modifiers) == 2) {
     // TODO: take care of all feature selection corner cases
@@ -375,7 +385,7 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
   ////////// saving and labeling features //////////
 }
 
-void getScansFromTxt() {
+void getRawScansFromTxt() {
   //std::ifstream infile("CorruptionQuality.txt");
   std::ifstream infile("RawSynthScans.txt");
 
@@ -410,11 +420,160 @@ void getScansFromTxt() {
   }
 }
 
-void getDownsampledScansFromTxt() {
+
+std::pair<vector<int>, vector<int>> BresenhamLineDraw(int start_x, int start_y, 
+                                                      int end_x, int end_y) {
+  vector<int> x_locs;
+  vector<int> y_locs;
+  int x, y;
+  int dx = end_x - start_x;
+  int dy = end_y - start_y;
+  int dx_abs = abs(end_x - start_x);
+  int dy_abs = abs(end_y - start_y);
+  int px = 2 * dy_abs - dx_abs;
+  int py = 2 * dx_abs - dy_abs;
+  if(dy_abs <= dx_abs) {
+    int xe;
+    if(dx >= 0) {
+      x = start_x;
+      y = start_y;
+      xe = end_x;
+    }
+    else {
+      x = end_x;
+      y = end_y;
+      xe = start_x;
+    }
+    x_locs.push_back(x);
+    y_locs.push_back(y);
+    while(x < xe) {
+      x = x + 1;
+      if(px <= 0) {
+        px = px + 2 * dy_abs;
+      }
+      else {
+        if((dx < 0 && dy < 0) || (dx > 0 && dy > 0)) {
+          y = y + 1;
+        }
+        else {
+          y = y - 1;
+        }
+        px = px + 2 * (dy_abs - dx_abs);
+      }
+      x_locs.push_back(x);
+      y_locs.push_back(y);
+    }
+  }
+  else {
+    int ye;
+    if(dy >= 0) {
+      x = start_x;
+      y = start_y;
+      ye = end_y;
+    }
+    else {
+      x = end_x;
+      y = end_y;
+      ye = start_y;
+    }
+    x_locs.push_back(x);
+    y_locs.push_back(y);
+    while(y < ye) {
+      y = y + 1;
+      if(py <= 0) {
+        py = py + 2 * dx_abs;
+      }
+      else {
+        if((dx < 0 && dy < 0) || (dx > 0 && dy > 0)) {
+          x = x + 1;
+        }
+        else {
+          x = x - 1;
+        }
+        py = py + 2 * (dx_abs - dy_abs);
+      }
+      x_locs.push_back(x);
+      y_locs.push_back(y);
+    }
+  }
+  std::pair<vector<int>, vector<int>> points_of_interest = make_pair(x_locs, y_locs);
+  return points_of_interest;
+}
+
+float getDepthFromPointsOfInterest(std::pair<vector<int>, vector<int>> points_of_interest,
+                                   cimg_library::CImg<uint8_t> scan_image, size_t origin_x, size_t origin_y) {
+  float min_depth = scan_image.width();
+  for (size_t i = 0; i < points_of_interest.first.size(); ++i) {
+    int poi_x = points_of_interest.first[i];
+    int poi_y = points_of_interest.second[i];
+    if (scan_image(poi_x, poi_y) == 255) {
+      min_depth = fmin(min_depth, sqrt(pow(float(origin_x) - float(poi_x), 2) + pow(float(origin_y) - float(poi_y), 2)));
+    }
+  }
+  return min_depth;
+}
+
+void getRecreatedScansFromTxt(std::string filename) {
   std::string line;
-  std::ifstream infile("../src/python/recreations.txt");
-  //std::ifstream infile("src/python/scansasimages.txt");
-  //std::ifstream infile("downsampledscans.txt");
+  std::ifstream infile(filename);
+
+  float maxin = 0.0;
+  float minin = 10.0;
+
+  size_t width = 256;
+  size_t height = 256;
+  size_t origin_x = 127;
+  size_t origin_y = 127;
+  float pixel_res = 0.08; //8 cm
+
+  std::cout << "loading recreations and raycasting" << std::endl;
+
+  int casting_scan_number = 0;
+
+  while (std::getline(infile, line)) {
+    if (casting_scan_number % 100 == 0) {
+      std::cout << casting_scan_number << std::endl;
+    }
+    std::istringstream iss(line);
+    float value;
+    cimg_library::CImg<uint8_t> scan_image(width, height);
+    int counter = 0;
+    while (iss >> value) {
+      int col = counter / width;
+      int row = counter % width;
+      scan_image(row, col) = uint8_t(value);
+      counter++;
+    }
+
+    vector<float> single_scan;
+    float current_angle = start_angle_;
+    while (current_angle <= (start_angle_ + field_of_view_)) {
+      Vector2f target_loc = max_range * Vector2f(cos(current_angle * (M_PI/180.0)), sin(current_angle * (M_PI/180.0)));
+      int target_x = (target_loc(0) / pixel_res) + origin_x;
+      int target_y = (target_loc(1) / pixel_res) + origin_y;
+      std::pair<vector<int>, vector<int>> points_of_interest = BresenhamLineDraw(origin_x, origin_y, target_x, target_y);
+
+      float pixel_depth = getDepthFromPointsOfInterest(points_of_interest, scan_image, origin_x, origin_y);
+      float depth = pixel_res * pixel_depth;
+      maxin = fmax(maxin, depth);
+      minin = fmin(minin, depth);
+      single_scan.push_back(depth);
+      current_angle += angular_res;
+    }
+    if (casting_scan_number % 100 == 0) {
+      string scan_image_file = "test_" + std::to_string(casting_scan_number) + ".png";
+      scan_image.save_png(scan_image_file.c_str());
+    }
+    all_scans_.push_back(single_scan);
+    casting_scan_number++;
+  }
+  std::cout << "max input: " << maxin << std::endl;
+  std::cout << "min input: " << minin << std::endl;
+}
+
+void getDownsampledScansFromTxt(std::string filename) {
+  std::string line;
+  std::ifstream infile(filename);
 
   float maxin = 0.0;
   float minin = 0.0;
@@ -426,45 +585,71 @@ void getDownsampledScansFromTxt() {
     while (iss >> value) {
       maxin = fmax(maxin, value);
       minin = fmin(minin, value);
-      // Assumes 0.0 <= 'value' <= 255.0
-      //value = value / 255.0;
-      //single_scan.push_back(max_range * (1.0 - value));
       // Assumes -1.0 <= 'value' <= 1.0
       value = (value * 0.5) + 0.5;
       single_scan.push_back(max_range * (1.0 - value));
-      // Assumes 0.0 <= 'value' <= 1.0
-      //single_scan.push_back(max_range * (1.0 - value));
     }
     all_scans_.push_back(single_scan);
   }
   std::cout << "max input: " << maxin << std::endl;
   std::cout << "min input: " << minin << std::endl;
-  viewing_recreation_ = true;
 }
 
 void getSideBySide() {
-  getDownsampledScansFromTxt();
-  all_scans_sidekick_ = all_scans_;
+  //getDownsampledScansFromTxt("src/python/recreations.txt");
+  getRecreatedScansFromTxt("src/python/recreations.txt");
+  all_scans_sidekick_1 = all_scans_;
   all_scans_.clear();
+  //getDownsampledScansFromTxt("src/python/medianfiltered.txt");
+  //all_scans_sidekick_2 = all_scans_;
+  //all_scans_.clear();
   getScansFromBag();
   side_by_side_viewing_ = true;
 }
 
 int main(int argc, char* argv[]) {
   if (argc < 2) {
-    std::cout << "Need bag name..." << std::endl;
+    std::cout << "Usage: ./AnalyzeScans <mode> (optional-->) <bag file 1> ... <bag file n>" << std::endl;
     return 1;
   }
-//  for (int i = 1; i < argc; ++i) {
-//  //  bag_names_.push_back(argv[i]);
-//    bag_name_ = argv[i];
-//    getScansFromBag();
-//  }
+  int mode = atoi(argv[1]);
 
-  getScansFromTxt();
+  if (mode == 0) { // Regular query answering mode
+    if (argc < 3) {
+      std::cout << "need at least 1 bag_name" << std::endl;
+      return 1;
+    }
+    for (int i = 2; i < argc; ++i) {
+      bag_names_.push_back(argv[i]);
+      bag_name_ = argv[i];
+      getScansFromBag();
+      //TODO: add bookkeepping for properly indexing / reporting scans after loading multiple bags
+    }
+  }
+  else if (mode == 1) { // Side By Side Viewing
+    if (argc != 3) {
+      std::cout << "need the bag file to compare" << std::endl;
+      return 1;
+    }
+    bag_name_ = argv[2];
+    getSideBySide();
+  }
 
-  //getDownsampledScansFromTxt();
-  //getSideBySide();
+  else if (mode == 2) { // View Embedding Interpolation
+    //getDownsampledScansFromTxt("src/python/recreations.txt");
+    getRecreatedScansFromTxt("src/python/recreations.txt");
+    normalized_ = true;
+  }
+  else {
+    std::cout << "undefined mode" << std::endl;
+    //getRawScansFromTxt();
+  }
+
+
+  //TODO: set up ability to immediately view query results
+
+
+
   std::cout << "loaded" << std::endl;
 
   ros::init(argc, argv, "scanalyzer");

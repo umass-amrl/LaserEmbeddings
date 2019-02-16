@@ -1908,10 +1908,14 @@ class LaserDataset(Dataset):
         #print(aprime_idx)
         inner_addr = a_idx - prev_seen
         inner_addr_prime = aprime_idx - prev_seen
+        #file_a_base = self.root_dir+self.record[record_idx][0]+self.record[record_idx][1]+"/"
+        #file_a_mid = self.record[record_idx][1]+"_"+str(inner_addr)+"_"
+        #file_aprime_base = self.root_dir+self.record[record_idx][0]+self.record[record_idx][1]+"/"
+        #file_aprime_mid = self.record[record_idx][1]+"_"+str(inner_addr_prime)+"_"
         file_a_base = self.root_dir+self.record[record_idx][0]+self.record[record_idx][1]+"/"
-        file_a_mid = self.record[record_idx][1]+"_"+str(inner_addr)+"_"
+        file_a_mid = self.record[record_idx][1]+"_"+str(inner_addr)
         file_aprime_base = self.root_dir+self.record[record_idx][0]+self.record[record_idx][1]+"/"
-        file_aprime_mid = self.record[record_idx][1]+"_"+str(inner_addr_prime)+"_"
+        file_aprime_mid = self.record[record_idx][1]+"_"+str(inner_addr_prime)
 
       prev_seen = seen
 
@@ -1934,18 +1938,25 @@ class LaserDataset(Dataset):
 
       if done:
         inner_addr = b_idx - prev_seen
+        #file_b_base = self.root_dir+self.record[record_idx][0]+self.record[record_idx][1]+"/"
+        #file_b_mid = self.record[record_idx][1]+"_"+str(inner_addr)+"_"
         file_b_base = self.root_dir+self.record[record_idx][0]+self.record[record_idx][1]+"/"
-        file_b_mid = self.record[record_idx][1]+"_"+str(inner_addr)+"_"
+        file_b_mid = self.record[record_idx][1]+"_"+str(inner_addr)
 
       prev_seen = seen
 
-    sample_a_norm = self.PNGtoNPA(file_a_base+file_a_mid+"norm.png")
-    #print(file_aprime_base+file_aprime_mid+"norm.png")
-    sample_aprime_norm = self.PNGtoNPA(file_aprime_base+file_aprime_mid+"norm.png")
-    sample_b_norm = self.PNGtoNPA(file_b_base+file_b_mid+"norm.png")
-    sample_a_rot = self.PNGtoNPA(file_a_base+file_a_mid+"rot.png")
-    sample_aprime_rot = self.PNGtoNPA(file_aprime_base+file_aprime_mid+"rot.png")
-    sample_b_rot = self.PNGtoNPA(file_b_base+file_b_mid+"rot.png")
+    #sample_a_norm = self.PNGtoNPA(file_a_base+file_a_mid+"norm.png")
+    #sample_aprime_norm = self.PNGtoNPA(file_aprime_base+file_aprime_mid+"norm.png")
+    #sample_b_norm = self.PNGtoNPA(file_b_base+file_b_mid+"norm.png")
+    #sample_a_rot = self.PNGtoNPA(file_a_base+file_a_mid+"rot.png")
+    #sample_aprime_rot = self.PNGtoNPA(file_aprime_base+file_aprime_mid+"rot.png")
+    #sample_b_rot = self.PNGtoNPA(file_b_base+file_b_mid+"rot.png")
+    sample_a_norm = self.PNGtoNPA(file_a_base+file_a_mid+".png")
+    sample_aprime_norm = self.PNGtoNPA(file_aprime_base+file_aprime_mid+".png")
+    sample_b_norm = self.PNGtoNPA(file_b_base+file_b_mid+".png")
+    sample_a_rot = self.PNGtoNPA(file_a_base+file_a_mid+".png")
+    sample_aprime_rot = self.PNGtoNPA(file_aprime_base+file_aprime_mid+".png")
+    sample_b_rot = self.PNGtoNPA(file_b_base+file_b_mid+".png")
     if self.transform:
       sample_a_norm = self.transform(sample_a_norm)
       sample_aprime_norm = self.transform(sample_aprime_norm)
@@ -1967,8 +1978,9 @@ class LaserDataset(Dataset):
     sample_aprime_rot = sample_aprime_rot.unsqueeze(0)
     sample_b_rot = sample_b_rot[0, :, :]
     sample_b_rot = sample_b_rot.unsqueeze(0)
-    
-    return sample_a_norm, sample_aprime_norm, sample_b_norm, sample_a_rot, sample_aprime_rot, sample_b_rot
+
+    label = np.array([0])
+    return sample_a_norm, sample_aprime_norm, sample_b_norm, sample_a_rot, sample_aprime_rot, sample_b_rot, label
 
 
 #TODO: rewrite for new data base structure
@@ -1987,16 +1999,20 @@ class LaserDataset(Dataset):
 
       if done:
         inner_addr = idx - prev_seen
+        #file_base = self.root_dir + self.record[record_idx][0] + self.record[record_idx][1] + "/"
+        #file_mid = self.record[record_idx][1] + "_" + str(inner_addr) + "_"
         file_base = self.root_dir + self.record[record_idx][0] + self.record[record_idx][1] + "/"
-        file_mid = self.record[record_idx][1] + "_" + str(inner_addr) + "_"
+        file_mid = self.record[record_idx][1] + "_" + str(inner_addr)
 
       prev_seen = seen
 
     #print(file_base + file_mid + "norm.png")
     #print(file_base + file_mid)
 
-    sample_norm = self.PNGtoNPA(file_base + file_mid + "norm.png")
-    sample_rot = self.PNGtoNPA(file_base + file_mid + "rot.png")
+    #sample_norm = self.PNGtoNPA(file_base + file_mid + "norm.png")
+    #sample_rot = self.PNGtoNPA(file_base + file_mid + "rot.png")
+    sample_norm = self.PNGtoNPA(file_base + file_mid + ".png")
+    sample_rot = self.PNGtoNPA(file_base + file_mid + ".png")
     if self.transform:
       sample_norm = self.transform(sample_norm)
       sample_rot = self.transform(sample_rot)
@@ -2035,11 +2051,22 @@ def CurateTrainTest():
   normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
   transform = transforms.Compose([to_tensor, normalize])
 
-  bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723],
-                ["UST-10LX/", "2016-04-17-20-34-16", 2332],
-                ["UST-10LX/", "2016-08-17-13-08-32", 2649],
-                ["UST-10LX/", "2016-08-17-13-16-56", 2832]]
-  
+  #bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723],
+  #              ["UST-10LX/", "2016-04-17-20-34-16", 2332],
+  #              ["UST-10LX/", "2016-08-17-13-08-32", 2649],
+  #              ["UST-10LX/", "2016-08-17-13-16-56", 2832],
+  #              ["UST-10LX/", "2016-08-17-13-18-08", 3283]]
+
+  #bdsl_train = [["UST-10LX_Natural/", "2016-04-17-20-32-59", 2723]]
+  bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723]]
+
+#  bdsl_train = [["UST-10LX_Natural/", "2016-04-17-20-32-59", 2723]]
+#                ["UST-10LX_Natural/", "2016-04-17-20-34-16", 2332],
+#                ["UST-10LX_Natural/", "2016-08-17-13-08-32", 2649],
+#                ["UST-10LX_Natural/", "2016-08-17-13-16-56", 2832]]
+#                ["UST-10LX_Natural/", "2016-08-17-13-18-08", 3283]]
+
+
   #bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723],
   #              ["UST-10LX/", "2016-08-17-13-16-56", 2832]]
   
@@ -3794,11 +3821,15 @@ def CurateTrainTest():
 #                ["URG-04LX/2013-12/", "2013-12-17-17-34-41", 1274]]
 
 
-  laser_dataset_train = LaserDataset('../../laser_images/full_normalized/', bdsl_train, transform=transform)
+  #laser_dataset_train = LaserDataset('../../laser_images/full_normalized/', bdsl_train, transform=transform)
+  laser_dataset_train = LaserDataset('../../laser_images/cartesian/', bdsl_train, transform=transform)
 
   #TODO: better way to differentiate training and testing sets
   #bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
-  bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 70]]
+  bdsl_test = [["UST-10LX_Natural/", "2016-08-17-13-18-08", 3283]]
+  #bdsl_test = [["UST-10LX_Natural/", "2016-08-17-13-18-08", 256]]
+  #bdsl_test = [["UST-10LX_Natural/", "2016-08-17-13-18-08", 64]]
+  #bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 70]]
 
   laser_dataset_test = LaserDataset('../../laser_images/full_normalized/', bdsl_test, transform=transform)
 
@@ -3850,7 +3881,12 @@ def SpecialTestSet():
   normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
   transform = transforms.Compose([to_tensor, normalize])
 
-  bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
+  #bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
+  #bdsl_test = [["UST-10LX_Natural/", "2016-08-17-13-18-08", 3283]]
+  bdsl_test = [["UST-10LX/", "2016-04-17-20-32-59", 2723]]
+  #bdsl_test = [["UST-10LX_Natural/", "2016-04-17-20-32-59", 2723]]
+  #bdsl_test = [["UST-10LX_Natural/", "2016-04-17-20-34-16", 2332]]
+  #bdsl_test = [["UST-10LX_Natural/", "2016-08-17-13-18-08", 50]]
   
   #bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 3283]]
 
@@ -3861,7 +3897,8 @@ def SpecialTestSet():
   #bdsl_test = [["UST-10LX/static_scenes/", "2018-04-08-15-59-33", 7867]]
 
   #bdsl_test = [["UST-10LX/", "hand_picked", 10]]
-  laser_dataset_test = LaserDataset('../../laser_images/full_normalized/', bdsl_test, transform=transform)
+  #laser_dataset_test = LaserDataset('../../laser_images/full_normalized/', bdsl_test, transform=transform)
+  laser_dataset_test = LaserDataset('../../laser_images/cartesian/', bdsl_test, transform=transform)
 
   return laser_dataset_test
 
@@ -3882,7 +3919,9 @@ def FeatureOnlyTestSet():
 
   #bdsl_test = [["UST-10LX/", "FeatureOnly", 1]]
   #laser_dataset_test = LaserDataset('../../laser_images/full_normalized/', bdsl_test, transform=transform)
-  bdsl_test = [["", "FeatureOnly", 1]]
+  #bdsl_test = [["", "FeatureOnly", 1]]
+  bdsl_test = [["", "FeatureOnly", 11]]
+  #bdsl_test = [["", "FeatureOnly", 2]]
   laser_dataset_test = LaserDataset('../../', bdsl_test, transform=transform)
 
   return laser_dataset_test
@@ -4107,10 +4146,13 @@ def CorruptedSets(sister_set):
   corrupted_set = [["", "2016-04-17-20-32-59", 2723],
                    ["", "2016-04-17-20-34-16", 2332],
                    ["", "2016-08-17-13-08-32", 2649],
-                   ["", "2016-08-17-13-16-56", 2832]]
+                   ["", "2016-08-17-13-16-56", 2832],
+                   ["", "2016-08-17-13-18-08", 3283]]
+
 
   #root_dirs = ["UST-10LX/Corrupted_Blur/", "UST-10LX/Corrupted_SaltPepper/", "UST-10LX/Corrupted_Humans/"]
-  root_dirs = ["../../laser_images/full_normalized/UST-10LX/Corrupted_Blur/"]
+  #root_dirs = ["../../laser_images/full_normalized/UST-10LX/Corrupted_Blur/"]
+  root_dirs = ["../../laser_images/full_normalized/UST-10LX_Natural/Corrupted_Blur/"]
 
   corrupted_dataset = CorruptedLaserDatasets(sister_set, root_dirs, corrupted_set, transform=transform)
 
@@ -4344,3 +4386,229 @@ def ObjectifiedSets(sister_set):
 
   return train_loader
 
+
+
+class SyntheticCrossoverLaserDatasets(Dataset):
+  """Laser dataset."""
+
+  def __init__(self, root_dirs, bag_dates_scan_lengths, transform=None):
+      """
+      Args:
+          bag_dates... ((N, 3) array): Parent dirs, dates, and scan lengths.
+          root_dirs list(string): Directories with all the images.
+          transform (callable, optional): Optional transform to be applied
+              on a sample.
+      """
+      self.root_dirs = root_dirs
+      self.transform = transform
+      self.record = bag_dates_scan_lengths
+      total_scans = 0
+      for i in range(len(bag_dates_scan_lengths)):
+        #print(bag_dates_scan_lengths[i][0]+bag_dates_scan_lengths[i][1])
+        total_scans = total_scans + bag_dates_scan_lengths[i][2]
+
+      self.size = total_scans
+
+  def PNGtoNPA(self, file_name):
+    im = cv2.imread(file_name)
+    return im
+  
+  def __len__(self):
+    return self.size
+
+  def __getitem__(self, idx):
+    file_a_base = ""
+    file_b_base = ""
+    file_a_mid = ""
+    file_b_mid = ""
+
+    ##window_size = 5
+    window_size = 20
+
+    a_idx = idx + 1 # idx is zero indexed and files are 1 indexed
+    prev_seen = 0
+    seen = 0
+    record_idx = 0
+    done = False
+    while not done:
+      #print(prev_seen)
+      seen = seen + self.record[record_idx][2]
+      #print(seen)
+      #print(a_idx)
+      if seen >= a_idx:
+        done = True
+      else:
+        record_idx = record_idx + 1
+
+      if done:
+        inner_addr = a_idx - prev_seen
+        #TODO: select from different corrupted root_dirs
+        file_a_base = self.root_dirs[0]+self.record[record_idx][0]+self.record[record_idx][1]+"/"
+        file_a_mid = self.record[record_idx][1]+"_"+str(inner_addr)+"_"
+
+      prev_seen = seen
+
+    valid_b = False
+    while not valid_b:
+      b_idx = random.randint(1, self.size)
+      if abs(b_idx - a_idx) > window_size:
+        valid_b = True
+
+    prev_seen = 0
+    seen = 0
+    record_idx = 0
+    done = False
+    while not done:
+      seen = seen + self.record[record_idx][2]
+      if seen >= b_idx:
+        done = True
+      else:
+        record_idx = record_idx + 1
+
+      if done:
+        inner_addr = b_idx - prev_seen
+        #TODO: select from different corrupted root_dirs
+        file_b_base = self.root_dirs[0]+self.record[record_idx][0]+self.record[record_idx][1]+"/"
+        file_b_mid = self.record[record_idx][1]+"_"+str(inner_addr)+"_"
+
+      prev_seen = seen
+
+    a_norm = self.PNGtoNPA(file_a_base+file_a_mid+"norm.png")
+    feat_norm = self.PNGtoNPA(file_a_base+file_a_mid+"norm.png")
+    b_norm = self.PNGtoNPA(file_b_base+file_b_mid+"norm.png")
+    a_rot = self.PNGtoNPA(file_a_base+file_a_mid+"rot.png")
+    feat_rot = self.PNGtoNPA(file_a_base+file_a_mid+"rot.png")
+    b_rot = self.PNGtoNPA(file_b_base+file_b_mid+"rot.png")
+    if self.transform:
+      a_norm = self.transform(a_norm)
+      feat_norm = self.transform(feat_norm)
+      b_norm = self.transform(b_norm)
+      a_rot = self.transform(a_rot)
+      feat_rot = self.transform(feat_rot)
+      b_rot = self.transform(b_rot)
+
+    a_norm = a_norm[0, :, :]
+    #a_norm = a_norm.unsqueeze(0)
+    a_norm = a_norm.unsqueeze(0)
+    feat_norm = feat_norm[0, :, :]
+    #feat_norm = feat_norm.unsqueeze(0)
+    feat_norm = feat_norm.unsqueeze(0)
+    b_norm = b_norm[0, :, :]
+    #b_norm = b_norm.unsqueeze(0)
+    b_norm = b_norm.unsqueeze(0)
+
+    a_rot = a_rot[0, :, :]
+    #a_rot = a_rot.unsqueeze(0)
+    a_rot = a_rot.unsqueeze(0)
+    feat_rot = feat_rot[0, :, :]
+    #feat_rot = feat_rot.unsqueeze(0)
+    feat_rot = feat_rot.unsqueeze(0)
+    b_rot = b_rot[0, :, :]
+    #b_rot = b_rot.unsqueeze(0)
+    b_rot = b_rot.unsqueeze(0)
+
+    min_feature_size = 10
+    feat_idx1 = random.randint(32, 224) ##don't select parts which are always zero
+    feat_idx2 = random.randint(32, 224)
+    while abs(feat_idx1 - feat_idx2) < min_feature_size:
+      feat_idx2 = random.randint(32, 224)
+
+    feat_start = min(feat_idx1, feat_idx2)
+    feat_end = max(feat_idx1, feat_idx2)
+
+    ##TODO: vectorize?
+    for i in range(256):
+      if i < feat_start or i > feat_end:
+        feat_norm[0, 0, i] = 0.0
+
+    crossover = random.random()
+    #label = np.array([1, 0])
+    label = np.array([0])
+    if crossover > 0.5:
+      #label = np.array([0, 1])
+      label = np.array([1])
+      for i in range(feat_start, feat_end):
+        b_norm[0, 0, i] = a_norm[0, 0, i] #(exact copy) (TODO: add noise, different location)
+    
+    label = torch.from_numpy(label)
+    #print(label.shape)
+
+    return a_norm, feat_norm, b_norm, a_rot, feat_rot, b_rot, label
+
+
+#TODO: rewrite for new data base structure
+  def getSpecificItem(self, idx):
+    idx = idx + 1
+    prev_seen = 0
+    seen = 0
+    record_idx = 0
+    done = False
+    while not done:
+      seen = seen + self.record[record_idx][2]
+      if seen >= idx:
+        done = True
+      else:
+        record_idx = record_idx + 1
+
+      if done:
+        inner_addr = idx - prev_seen
+        file_base = self.root_dir + self.record[record_idx][0] + self.record[record_idx][1] + "/"
+        file_mid = self.record[record_idx][1] + "_" + str(inner_addr) + "_"
+
+      prev_seen = seen
+
+    #print(file_base + file_mid + "norm.png")
+
+    sample_norm = self.PNGtoNPA(file_base + file_mid + "norm.png")
+    sample_rot = self.PNGtoNPA(file_base + file_mid + "rot.png")
+    if self.transform:
+      sample_norm = self.transform(sample_norm)
+      sample_rot = self.transform(sample_rot)
+
+    sample_norm = sample_norm[0, :, :]
+    sample_norm = sample_norm.unsqueeze(0)
+    #sample_norm = sample_norm.unsqueeze(0)
+
+    sample_rot = sample_rot[0, :, :]
+    sample_rot = sample_rot.unsqueeze(0)
+    #sample_rot = sample_rot.unsqueeze(0)
+
+    return sample_norm, sample_rot
+
+#TODO: rewrite for new data base structure
+  def getAddress(self, idx):
+    return self.record[idx]
+
+
+
+def CrossedOverSets():
+  to_tensor = transforms.ToTensor()
+  normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+  transform = transforms.Compose([to_tensor, normalize])
+
+  #crossover_set = [["", "2016-04-17-20-32-59", 2723]]
+  #crossover_set = [["", "2016-04-17-20-32-59", 2722]]
+ 
+  #crossover_set = [["", "2016-04-17-20-34-16", 2332]]
+  crossover_set = [["", "2016-04-17-20-32-59", 2723],
+                   ["", "2016-04-17-20-34-16", 2332],
+                   ["", "2016-08-17-13-08-32", 2649],
+                   ["", "2016-08-17-13-16-56", 2832]]
+ #crossover_set = [["", "2016-04-17-20-32-59", 2723],
+  #                 ["", "2016-04-17-20-34-16", 2332],
+  #                 ["", "2016-08-17-13-08-32", 2649],
+  #                 ["", "2016-08-17-13-16-56", 2832]]
+
+  crossover_test = [["", "2016-08-17-13-18-08", 256]] #3283
+
+  root_dirs = ["../../laser_images/full_normalized/UST-10LX_Natural/"]
+
+  crossover_dataset = SyntheticCrossoverLaserDatasets(root_dirs, crossover_set, transform=transform)
+  crossover_dataset_test = SyntheticCrossoverLaserDatasets(root_dirs, crossover_test, transform=transform)
+
+  #train_loader = torch.utils.data.DataLoader(crossover_dataset, batch_size=2, shuffle=True)
+  #train_loader = torch.utils.data.DataLoader(crossover_dataset, batch_size=128, shuffle=True)
+  train_loader = torch.utils.data.DataLoader(crossover_dataset, batch_size=16, shuffle=True)
+  test_loader = torch.utils.data.DataLoader(crossover_dataset_test, batch_size=4, shuffle=False)
+
+  return train_loader, test_loader
