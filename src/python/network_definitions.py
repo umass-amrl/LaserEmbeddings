@@ -165,3 +165,14 @@ class SimNet(nn.Module):
      x = self.relu(self.fc2(x))
      sim_score= self.sigmoid(self.fc3(x))
      return sim_score
+
+class SimNetTrainer(nn.Module):
+  def __init__(self, simnet):
+    super(SimNetTrainer, self).__init__()
+    self.simnet = simnet
+
+  def forward(self, DB_instance_A, DB_instance_B, query):
+    sim_score_A = self.simnet(DB_instance_A, query)
+    sim_score_B = self.simnet(DB_instance_B, query)
+    return sim_score_A, sim_score_B
+

@@ -12,6 +12,7 @@ Created on Tue Mar  6 17:35:43 2018
 from __future__ import print_function
 
 import os
+import sys
 import copy
 import torch
 import random
@@ -24,7 +25,7 @@ import torch.nn.functional as F
 import convert_png_to_numpy as cptn
 import torch.backends.cudnn as cudnn
 
-from network_definitions import VAE, SimNet
+from network_definitions import VAE, SimNet, SimNetTrainer
 
 from visdom import Visdom
 from torch.autograd import Variable
@@ -84,8 +85,36 @@ def loss_function(recon_x, x, mu, logvar, weights):
 
 ######################### TRAIN #########################
 
-def trainSimNet():
-  print("todo")
+def trainSimNet(train_loader, vae, simnet_trainer, epoch, log_interval):
+  losses = AverageMeter()
+  vae.eval()
+  simnet_trainer.train()
+  for batch_idx, (scans) in enumerate(train_loader):
+    with torch.no_grad():
+      #TODO: how get the right 3?
+      scans = Variable(scans)
+      scans = scans.cuda()
+      _, mu, _ = vae(scans)
+
+    sim_score_A, sim_score_B = simnet_trainer(mu_A, mu_B, mu_q)
+
+    #TODO: compute loss
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+    #TODO: may need a different way of getting batch size
+    losses.update(loss.item(), scans.size(0))
+    emb_norms.update(loss_embed.item(), scans.size(0))
+    if batch_idx % log_interval == 0:
+      print('Train Epoch: {} [{}/{}]\t'
+            'Loss: {:.4f} ({:.4f}) \t'
+            'Emb_Norm: {:.2f} ({:.2f})'.format(
+          epoch, batch_idx * len(scans), len(train_loader.dataset),
+          losses.val, losses.avg, emb_norms.val, emb_norms.avg))
+
+  return losses.avg
 
 def trainVAE(train_loader, vae, optimizer, epoch, log_interval):
   losses = AverageMeter()
@@ -137,33 +166,51 @@ def trainVAE(train_loader, vae, optimizer, epoch, log_interval):
 
 ######################### TEST #########################
 
+def testSimNet(test_loader, vae, simnet_trainer, epoch):
+  accs = AverageMeter()
+  vae.eval()
+  simnet.eval()
+  with torch.no_grad():
+    for batch_idx, (scans) in enumerate(test_loader):
+      scans = Variable(scans)
+      scans = scans.cuda()
+      _, mu, _ = vae(scans)
+      sim_score_A, sim_score_B = simnet_trainer(mu_A, mu_B, mu_q)
+
+      #TODO: compute accuracy
+      acc = 0.0
+      accs.update(acc, scans.size(0))
+
+  return accs.avg
+
 def testVAE(test_loader, vae, epoch):
   losses = AverageMeter()
 
   # switch to evaluation mode
   vae.eval()
-  for batch_idx, (scans) in enumerate(test_loader):
+  with torch.no_grad():
+    for batch_idx, (scans) in enumerate(test_loader):
 
-    batch_size = list(scans.shape)[0]
-    mask_x = copy.deepcopy(scans)
-    mask_x = np.reshape(mask_x, (batch_size, 256 * 256))
-    total_pixels = float(batch_size * 256 * 256)
-    #pos_weight = total_pixels / float((0 < mask_x).sum())
-    #neg_weight = total_pixels / float(total_pixels - (0 < mask_x).sum())
-    pos_weight = 50.0
-    neg_weight = 1.0
-    mask_x[mask_x > 0] = pos_weight
-    mask_x[mask_x < 0] = neg_weight
+      batch_size = list(scans.shape)[0]
+      mask_x = copy.deepcopy(scans)
+      mask_x = np.reshape(mask_x, (batch_size, 256 * 256))
+      total_pixels = float(batch_size * 256 * 256)
+      #pos_weight = total_pixels / float((0 < mask_x).sum())
+      #neg_weight = total_pixels / float(total_pixels - (0 < mask_x).sum())
+      pos_weight = 50.0
+      neg_weight = 1.0
+      mask_x[mask_x > 0] = pos_weight
+      mask_x[mask_x < 0] = neg_weight
 
-    scans = Variable(scans)
-    scans = scans.cuda()
-    mask_x = Variable(mask_x)
-    mask_x = mask_x.cuda()
+      scans = Variable(scans)
+      scans = scans.cuda()
+      mask_x = Variable(mask_x)
+      mask_x = mask_x.cuda()
 
-    rec_x, mu, logvar = vae(scans)
-    loss, loss_embed = loss_function(rec_x, scans, mu, logvar, mask_x)
+      rec_x, mu, logvar = vae(scans)
+      loss, loss_embed = loss_function(rec_x, scans, mu, logvar, mask_x)
 
-    losses.update(loss, scans.size(0))
+      losses.update(loss, scans.size(0))
 
   print('\nTest set: Average loss: {:.4f}\n'.format(losses.avg))
 ##  plotter.plot('acc', 'test', epoch, accs.avg)
@@ -184,25 +231,26 @@ def save_checkpoint(state, is_best, filename):
   if is_best:
     shutil.copyfile(filename, directory + 'model_best.pth.tar')
 
-def shouldSave(best_train, best_test):
+def shouldSave(model, best_train, best_test, epoch):
+  is_best = True
+  best_acc = 0.0
   if best_train:
     save_checkpoint({
       'epoch': epoch + 1,
-      'state_dict': tnet.state_dict(),
+      'state_dict': model.state_dict(),
       'best_acc': best_acc,
     }, is_best, 'checkpoint_train_'+str(epoch)+'.pth.tar')
 
   if best_test:
     save_checkpoint({
       'epoch': epoch + 1,
-      'state_dict': tnet.state_dict(),
+      'state_dict': model.state_dict(),
       'best_acc': best_acc,
     }, is_best, 'checkpoint_test_'+str(epoch)+'.pth.tar')
 
-def loadNetwork(model):
+def loadNetwork(model, checkpoint_to_load):
   model = model.cuda()
 
-  checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
   epoch = 1
   best_acc = 0.0
 
@@ -225,14 +273,29 @@ def loadNetwork(model):
 ############################## MAIN ##############################
 
 def main():
-  #global plotter 
-  #plotter = VisdomLinePlotter(env_name="plooter")
-  #plotter = VisdomLinePlotter()
+  mode = -1
+  if len(sys.argv) < 1:
+    print("No mode selected. Usage: python training.py <mode>")
+    return
+  else:
+    mode = int(sys.argv[1])
 
-  #TODO: command line arg to switch between training VAE and training simnet
-  model = VAE()
-  #model = SimNet()
+  if mode != 0 and mode != 1:
+    print("Unrecognized mode. Exiting")
+    return
 
+  model = SimNet()
+  checkpoint_to_load = ""
+
+  if mode == 0: # Train Variational Autoencoder
+    model = VAE()
+    checkpoint_to_load = 'model_checkpoints/archive/Cartesian/VAE_repeat_init/checkpoint_train_15.pth.tar'
+
+  elif mode == 1: # Train SimNet
+    model = SimNetTrainer(model)
+    #checkpoint_to_load = 'model_checkpoints/current/'
+
+  #TODO: set up databases for different training techniques and different networks
   laser_dataset_train, laser_dataset_test = cptn.CurateTrainTest()
   train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=16, shuffle=True)
   test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
@@ -243,7 +306,7 @@ def main():
 
   # optionally resume from a checkpoint
   if resume:
-    model, star_epoch, best_acc = loadNetwork(model)
+    model, start_epoch, best_acc = loadNetwork(model, checkpoint_to_load)
   model = model.cuda()
 
   #learning_rate = 0.001
@@ -257,24 +320,32 @@ def main():
   log_interval = 20
   best_avg_loss_train = 5000000.0
   best_avg_loss_test = 5000000.0
+  best_avg_acc_test = 0.0
+  is_least_lossy_train = False
+  is_least_lossy_test = False
+  is_most_acc_test = False
   for epoch in range(start_epoch, epochs + 1):
-    # train for one epoch
-    avg_loss_train = trainVAE(train_loader, model, optimizer, epoch, log_interval)
+    if mode == 0:
+      avg_loss_train = trainVAE(train_loader, model, optimizer, epoch, log_interval)
+      is_least_lossy_train = avg_loss_train < best_avg_loss_train
+      best_avg_loss_train = min(avg_loss_train, best_avg_loss_train)
 
-    is_least_lossy_train = avg_loss_train < best_avg_loss_train
-    best_avg_loss_train = min(avg_loss_train, best_avg_loss_train)
+      avg_loss_test = testVAE(test_loader, model, epoch)
+      is_least_lossy_test = avg_loss_test < best_avg_loss_test
+      best_avg_loss_test = min(avg_loss_test, best_avg_loss_test)
 
-    #trainSimNet(train_loader, model, criterion1, criterion2, optimizer, epoch, margin1a)
+      shouldSave(model, is_least_lossy_train, is_least_lossy_test, epoch)
 
-    # evaluate on validation set
-    avg_loss_test = testVAE(test_loader, model, epoch)
+    elif mode == 1:
+      avg_loss_train = trainSimNet(train_loader, vae, model, optimizer, epoch, log_interval)
+      is_least_lossy_train = avg_loss_train < best_avg_loss_train
+      best_avg_loss_train = min(avg_loss_train, best_avg_loss_train)
 
-    is_least_lossy_test = avg_loss_test < best_avg_loss_test
-    best_avg_loss_test = min(avg_loss_test, best_avg_loss_test)
+      avg_acc_test = testSimNet(test_loader, vae, model, epoch)
+      is_most_acc_test = avg_acc_test < best_avg_acc_test
+      best_avg_acc_test = min(avg_acc_test, best_avg_acc_test)
 
-    #loss = testSimNet(test_loader, model, epoch)
-
-    shouldSave(is_least_lossy_train, is_least_lossy_test)
+      shouldSave(model, is_least_lossy_train, is_most_acc_test, epoch)
 
 if __name__ == '__main__':
   main()
