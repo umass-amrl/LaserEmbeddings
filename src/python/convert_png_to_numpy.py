@@ -7,6 +7,7 @@ Created on Tue Mar  7 11:55:36 2018
 
 import csv
 import cv2
+import copy
 import torch
 import random
 import torchvision
@@ -2913,9 +2914,37 @@ def CrossedOverSets():
 
 
 
-#TODO: implement each type of crossover / mutation / corruption as a function which
-#      has a certain probability of being called within __getitem__
-class LaserDatasetTRIPLELETS(Dataset):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class LaserDatasetSimTriplets(Dataset):
   """Laser dataset."""
 
   def __init__(self, root_dir, bag_dates_scan_lengths, transform=None):
@@ -2930,10 +2959,11 @@ class LaserDatasetTRIPLELETS(Dataset):
     self.record = bag_dates_scan_lengths
     total_scans = 0
     for i in range(len(bag_dates_scan_lengths)):
-      #print(bag_dates_scan_lengths[i][0]+bag_dates_scan_lengths[i][1])
       total_scans = total_scans + bag_dates_scan_lengths[i][2]
 
     self.size = total_scans
+    self.gaussian = False
+    self.salt_pepper = False
 
   def PNGtoNPA(self, file_name):
     im = cv2.imread(file_name)
@@ -2943,39 +2973,33 @@ class LaserDatasetTRIPLELETS(Dataset):
     return self.size
 
   def __getitem__(self, idx):
-    file_base = ""
-    file_mid = ""
+    b_idx = random.randint(1, self.size)
+    scan_A = getSpecificItem(idx)
+    scan_B = getSpecificItem(b_idx)
+    scan_Q = copy.deepcopy(scan_A)
+    if :
+      scan_Q = copy.deepcopy(scan_B)
 
-    idx = idx + 1 # idx is zero indexed and files are 1 indexed
-    prev_seen = 0
-    seen = 0
-    record_idx = 0
-    done = False
-    while not done:
-      seen = seen + self.record[record_idx][2]
-      if seen >= idx:
-        done = True
-      else:
-        record_idx = record_idx + 1
+    #TODO: construct scan_Q by randomly (or not) deciding which curriculum to apply:
+    if :
+      scan_Q = addNoise(scan_Q)
 
-      if done:
-        inner_addr = idx - prev_seen
-        file_base = self.root_dir+self.record[record_idx][0]+self.record[record_idx][1]+"/"
-        file_mid = self.record[record_idx][1]+"_"+str(inner_addr)
-
-      prev_seen = seen
-
-    scan = self.PNGtoNPA(file_base+file_mid+".png")
-    if self.transform:
-      scan = self.transform(scan)
-
-    scan = scan[0, :, :]
-    scan = scan.unsqueeze(0)
-
-    return scan
+    if :
+      scan_Q = crossover(scan_A, scan_B, scan_Q)
+    elif :
+      scan_Q = addNoise(scan_Q)
 
 
-#TODO: rewrite for new data base structure
+    if :
+      scan_Q = selectSubset(scan_A, scan_B, scan_Q)
+    elif :
+      scan_Q = addNoise(scan_Q)
+
+    #scan_Q = masking()
+
+
+    return scan_A, scan_B, scan_Q
+
   def getSpecificItem(self, idx):
     file_base = ""
     file_mid = ""
@@ -3008,11 +3032,26 @@ class LaserDatasetTRIPLELETS(Dataset):
 
     return scan
 
-#TODO: rewrite for new data base structure
   def getAddress(self, idx):
     return self.record[idx]
 
 
+  def addNoise(scan_Q):
+    if self.gaussian:
+
+    if self.salt_pepper:
+
+
+    return scan_Q
+
+  def crossover(scan_A, scan_B):
+    return crossed_over_scan
+
+  def selectSubset(superset_scan, selection_window):
+    return subset_scan
+
+  def masking():
+    print("todo")
 
 
 
@@ -3022,9 +3061,6 @@ class LaserDatasetTRIPLELETS(Dataset):
 
 
 
-
-#TODO: apply any Gaussian blur, S&P, rotation, Flip, 
-#TODO: Subset selection (PRIORITY)
 class LaserDataset(Dataset):
   """Laser dataset."""
 
@@ -3040,7 +3076,6 @@ class LaserDataset(Dataset):
     self.record = bag_dates_scan_lengths
     total_scans = 0
     for i in range(len(bag_dates_scan_lengths)):
-      #print(bag_dates_scan_lengths[i][0]+bag_dates_scan_lengths[i][1])
       total_scans = total_scans + bag_dates_scan_lengths[i][2]
 
     self.size = total_scans
@@ -3053,39 +3088,23 @@ class LaserDataset(Dataset):
     return self.size
 
   def __getitem__(self, idx):
-    file_base = ""
-    file_mid = ""
-
-    idx = idx + 1 # idx is zero indexed and files are 1 indexed
-    prev_seen = 0
-    seen = 0
-    record_idx = 0
-    done = False
-    while not done:
-      seen = seen + self.record[record_idx][2]
-      if seen >= idx:
-        done = True
-      else:
-        record_idx = record_idx + 1
-
-      if done:
-        inner_addr = idx - prev_seen
-        file_base = self.root_dir+self.record[record_idx][0]+self.record[record_idx][1]+"/"
-        file_mid = self.record[record_idx][1]+"_"+str(inner_addr)
-
-      prev_seen = seen
-
-    scan = self.PNGtoNPA(file_base+file_mid+".png")
-    if self.transform:
-      scan = self.transform(scan)
-
-    scan = scan[0, :, :]
-    scan = scan.unsqueeze(0)
-
-    return scan
+    input_scan = getSpecificItem(idx)
+    recreation_target_scan = copy.deepcopy(input_scan)
 
 
-#TODO: rewrite for new data base structure
+
+
+
+    #TODO: with some probability, invoke one or more of the following:
+    input_scan = addGaussianNoise(input_scan)
+    input_scan = addSaltPepperNoise(input_scan)
+    input_scan, recreation_target_scan = induceClip(input_scan, recreation_target_scan)
+    input_scan, recreation_target_scan = induceFlip(input_scan, recreation_target_scan)
+    input_scan, recreation_target_scan = induceRotation(input_scan, recreation_target_scan)
+    input_scan, recreation_target_scan = selectSubset(input_scan, recreation_target_scan)
+
+    return input_scan, recreation_target_scan
+
   def getSpecificItem(self, idx):
     file_base = ""
     file_mid = ""
@@ -3118,7 +3137,30 @@ class LaserDataset(Dataset):
 
     return scan
 
-#TODO: rewrite for new data base structure
+  def addGaussianNoise(scan_img):
+    print("todo")
+    return scan_img
+
+  def addSaltPepperNoise(scan_img):
+    print("todo")
+    return scan_img
+
+  def induceClip(input_scan_img, recreation_target_img):
+    print("todo")
+    return scan_img, recreation_target_img
+
+  def induceFlip(input_scan_img, recreation_target_img):
+    print("todo")
+    return scan_img, recreation_target_img
+
+  def induceRotation(input_scan_img, recreation_target_img):
+    print("todo")
+    return scan_img, recreation_target_img
+
+  def selectSubset(input_scan_img, recreation_target_img):
+    print("todo")
+    return scan_img, recreation_target_img
+
   def getAddress(self, idx):
     return self.record[idx]
 

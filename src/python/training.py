@@ -89,14 +89,21 @@ def trainSimNet(train_loader, vae, simnet_trainer, epoch, log_interval):
   losses = AverageMeter()
   vae.eval()
   simnet_trainer.train()
-  for batch_idx, (scans) in enumerate(train_loader):
-    with torch.no_grad():
-      #TODO: how get the right 3?
-      scans = Variable(scans)
-      scans = scans.cuda()
-      _, mu, _ = vae(scans)
+  for batch_idx, (scan_A, scan_B, scan_Q, label) in enumerate(train_loader):
+    #TODO: get the right label
 
-    sim_score_A, sim_score_B = simnet_trainer(mu_A, mu_B, mu_q)
+    with torch.no_grad():
+      scan_A = Variable(scan_A)
+      scan_B = Variable(scan_B)
+      scan_Q = Variable(scan_Q)
+      scan_A = scan_A.cuda()
+      scan_B = scan_B.cuda()
+      scan_Q = scan_Q.cuda()
+      _, mu_A, _ = vae(scan_A)
+      _, mu_B, _ = vae(scan_B)
+      _, mu_Q, _ = vae(scan_Q)
+
+    sim_score_A, sim_score_B = simnet_trainer(mu_A, mu_B, mu_Q)
 
     #TODO: compute loss
 
@@ -105,13 +112,13 @@ def trainSimNet(train_loader, vae, simnet_trainer, epoch, log_interval):
     optimizer.step()
 
     #TODO: may need a different way of getting batch size
-    losses.update(loss.item(), scans.size(0))
-    emb_norms.update(loss_embed.item(), scans.size(0))
+    losses.update(loss.item(), scan_Q.size(0))
+    emb_norms.update(loss_embed.item(), scan_Q.size(0))
     if batch_idx % log_interval == 0:
       print('Train Epoch: {} [{}/{}]\t'
             'Loss: {:.4f} ({:.4f}) \t'
             'Emb_Norm: {:.2f} ({:.2f})'.format(
-          epoch, batch_idx * len(scans), len(train_loader.dataset),
+          epoch, batch_idx * len(scan_Q), len(train_loader.dataset),
           losses.val, losses.avg, emb_norms.val, emb_norms.avg))
 
   return losses.avg
@@ -122,10 +129,10 @@ def trainVAE(train_loader, vae, optimizer, epoch, log_interval):
 
   # switch to train mode
   vae.train()
-  for batch_idx, (scans) in enumerate(train_loader):
+  for batch_idx, (input_scan, recreation_target) in enumerate(train_loader):
 
-    batch_size = list(scans.shape)[0]
-    mask_x = copy.deepcopy(scans)
+    batch_size = list(input_scan.shape)[0]
+    mask_x = copy.deepcopy(recreation_target)
     mask_x = np.reshape(mask_x, (batch_size, 256 * 256))
     total_pixels = float(batch_size * 256 * 256)
     #pos_weight = total_pixels / float((0 < mask_x).sum())
@@ -135,27 +142,29 @@ def trainVAE(train_loader, vae, optimizer, epoch, log_interval):
     mask_x[mask_x > 0] = pos_weight
     mask_x[mask_x < 0] = neg_weight
 
-    scans = Variable(scans)
-    scans = scans.cuda()
+    input_scan = Variable(input_scan)
+    input_scan = input_scan.cuda()
+    recreation_target = Variable(recreation_target)
+    recreation_target = recreation_target.cuda()
     mask_x = Variable(mask_x)
     mask_x = mask_x.cuda()
 
-    rec_x, mu, logvar = vae(scans)
+    rec_x, mu, logvar = vae(input_scan)
 
-    loss, loss_embed = loss_function(rec_x, scans, mu, logvar, mask_x)
+    loss, loss_embed = loss_function(rec_x, recreation_target, mu, logvar, mask_x)
 
     # compute gradient and do optimizer step
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
-    losses.update(loss.item(), scans.size(0))
-    emb_norms.update(loss_embed.item(), scans.size(0))
+    losses.update(loss.item(), input_scan.size(0))
+    emb_norms.update(loss_embed.item(), input_scan.size(0))
     if batch_idx % log_interval == 0:
       print('Train Epoch: {} [{}/{}]\t'
             'Loss: {:.4f} ({:.4f}) \t'
             'Emb_Norm: {:.2f} ({:.2f})'.format(
-          epoch, batch_idx * len(scans), len(train_loader.dataset),
+          epoch, batch_idx * len(input_scan), len(train_loader.dataset),
           losses.val, losses.avg, emb_norms.val, emb_norms.avg))
   # log avg values to somewhere
 ##  plotter.plot('acc', 'train', epoch, accs.avg)
@@ -171,15 +180,25 @@ def testSimNet(test_loader, vae, simnet_trainer, epoch):
   vae.eval()
   simnet.eval()
   with torch.no_grad():
-    for batch_idx, (scans) in enumerate(test_loader):
-      scans = Variable(scans)
-      scans = scans.cuda()
-      _, mu, _ = vae(scans)
-      sim_score_A, sim_score_B = simnet_trainer(mu_A, mu_B, mu_q)
+    for batch_idx, (scan_A, scan_B, scan_Q) in enumerate(test_loader):
+      #TODO: need labels from dataset
+
+      scan_A = Variable(scan_A)
+      scan_B = Variable(scan_B)
+      scan_Q = Variable(scan_Q)
+      scan_A = scan_A.cuda()
+      scan_B = scan_B.cuda()
+      scan_Q = scan_Q.cuda()
+      _, mu_A, _ = vae(scan_A)
+      _, mu_B, _ = vae(scan_B)
+      _, mu_Q, _ = vae(scan_Q)
+      sim_score_A, sim_score_B = simnet_trainer(mu_A, mu_B, mu_Q)
+
+
 
       #TODO: compute accuracy
       acc = 0.0
-      accs.update(acc, scans.size(0))
+      accs.update(acc, scan_Q.size(0))
 
   return accs.avg
 
@@ -189,10 +208,10 @@ def testVAE(test_loader, vae, epoch):
   # switch to evaluation mode
   vae.eval()
   with torch.no_grad():
-    for batch_idx, (scans) in enumerate(test_loader):
+    for batch_idx, (input_scan, recreation_target) in enumerate(test_loader):
 
-      batch_size = list(scans.shape)[0]
-      mask_x = copy.deepcopy(scans)
+      batch_size = list(input_scan.shape)[0]
+      mask_x = copy.deepcopy(input_scan)
       mask_x = np.reshape(mask_x, (batch_size, 256 * 256))
       total_pixels = float(batch_size * 256 * 256)
       #pos_weight = total_pixels / float((0 < mask_x).sum())
@@ -202,15 +221,17 @@ def testVAE(test_loader, vae, epoch):
       mask_x[mask_x > 0] = pos_weight
       mask_x[mask_x < 0] = neg_weight
 
-      scans = Variable(scans)
-      scans = scans.cuda()
+      input_scan = Variable(input_scan)
+      input_scan = input_scan.cuda()
+      recreation_target = Variable(recreation_target
+      recreation_target = recreation_target.cuda()
       mask_x = Variable(mask_x)
       mask_x = mask_x.cuda()
 
-      rec_x, mu, logvar = vae(scans)
-      loss, loss_embed = loss_function(rec_x, scans, mu, logvar, mask_x)
+      rec_x, mu, logvar = vae(input_scan)
+      loss, loss_embed = loss_function(rec_x, recreation_target, mu, logvar, mask_x)
 
-      losses.update(loss, scans.size(0))
+      losses.update(loss, input_scan.size(0))
 
   print('\nTest set: Average loss: {:.4f}\n'.format(losses.avg))
 ##  plotter.plot('acc', 'test', epoch, accs.avg)
