@@ -8,6 +8,7 @@ Created on Tue Mar  7 11:55:36 2018
 import csv
 import cv2
 import copy
+import math
 import torch
 import scipy
 import scipy.ndimage
@@ -17,6 +18,7 @@ import numpy as np
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 from torchvision import utils
+from PIL import Image, ImageDraw
 
 # # NOTE: MASTER LIST. DO NOT ALTER. ONLY COPY.
 
@@ -3231,8 +3233,97 @@ class LaserDataset(Dataset):
     subset_size = random.randint(self.min_subset_subtend, self.max_subset_subtend)
     subset_start_angle = random.randint(self.start_angle, self.start_angle + self.field_of_view - subset_size)
     subset_end_angle = subset_start_angle + subset_size
-    #TODO: find mask between angles
-    return input_scan_img, recreation_target_img
+
+    print(subset_start_angle)
+    print(subset_end_angle)
+
+    subset_start_angle = -116
+    subset_end_angle = 69
+
+    input_img = Image.fromarray(input_scan_img)
+    target_img = Image.fromarray(recreation_target_img)
+
+    origin = (127, 127)
+    cneg135 = (0, 0)
+    cneg45 = (256, 0)
+    c45 = (256, 256)
+    c135 = (0, 256)
+    corner_list = [c135, c45, cneg45, cneg135]
+    angles = [135, 45, -45, -135]
+    polygon = [origin]
+
+    polygon = self.findSquareIntersect(subset_end_angle, polygon)
+
+    for i in range(len(angles)):
+      if subset_end_angle > angles[i] and subset_start_angle < angles[i]:
+        polygon.append(corner_list[i])
+
+    polygon = self.findSquareIntersect(subset_start_angle, polygon)
+
+    # find mask between angles
+    PILimg = Image.new('L', (self.img_width, self.img_height), 0)
+    ImageDraw.Draw(PILimg).polygon(polygon, outline=255, fill=255)
+    mask = np.array(PILimg)
+
+    print(mask.shape)
+
+    return mask, mask
+
+    #return input_scan_img, recreation_target_img
+
+
+  def findSquareIntersect(self, angle, polygon):
+    new_vertex = (-1, -1)
+    cneg135 = (0, 0)
+    cneg45 = (256, 0)
+    c45 = (256, 256)
+    c135 = (0, 256)
+    deg_to_rad = 3.14159 / 180.0
+    side_proj_norm = 0.70711 # 1/sqrt(2)
+
+    # assume: -180 <= start < end <= 180
+    if angle < -135:
+      off_center = int((math.sin(deg_to_rad * angle) / side_proj_norm) * (self.img_height / 2))
+      new_vertex = (0, min((self.img_height / 2) + off_center, self.img_height))
+      polygon.append(new_vertex)
+
+    elif angle == -135:
+      polygon.append(cneg135)
+
+    elif angle < -45:
+      off_center = int((math.cos(deg_to_rad * angle) / side_proj_norm) * (self.img_width / 2))
+      new_vertex = (min((self.img_width / 2) + off_center, self.img_width), 0)
+      polygon.append(new_vertex)
+
+    elif angle == -45:
+      polygon.append(cneg45)
+
+    elif angle < 45:
+      off_center = int((math.sin(deg_to_rad * angle) / side_proj_norm) * (self.img_height / 2))
+      new_vertex = (256, min((self.img_height / 2) + off_center, self.img_height))
+      polygon.append(new_vertex)
+
+    elif angle == 45:
+      polygon.append(c45)
+
+    elif angle < 135:
+      print("here")
+      off_center = int((math.cos(deg_to_rad * angle) / side_proj_norm) * (self.img_width / 2))
+      new_vertex = (min((self.img_width / 2) + off_center, self.img_width), 256)
+      polygon.append(new_vertex)
+
+    elif angle == 135:
+      polygon.append(c145)
+
+    elif angle <= 180:
+      off_center = int((math.sin(deg_to_rad * angle) / side_proj_norm) * (self.img_height / 2))
+      new_vertex = (0, min((self.img_height / 2) + off_center, self.img_height))
+      polygon.append(new_vertex)
+
+    else:
+      print("ill-defined end_angle")
+
+    return polygon
 
   def getAddress(self, idx):
     return self.record[idx]
