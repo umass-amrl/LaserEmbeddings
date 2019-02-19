@@ -9,6 +9,8 @@ import csv
 import cv2
 import copy
 import torch
+import scipy
+import scipy.ndimage
 import random
 import torchvision
 import numpy as np
@@ -2977,22 +2979,22 @@ class LaserDatasetSimTriplets(Dataset):
     scan_A = getSpecificItem(idx)
     scan_B = getSpecificItem(b_idx)
     scan_Q = copy.deepcopy(scan_A)
-    if :
+    if False:
       scan_Q = copy.deepcopy(scan_B)
 
     #TODO: construct scan_Q by randomly (or not) deciding which curriculum to apply:
-    if :
+    if False:
       scan_Q = addNoise(scan_Q)
 
-    if :
+    if False:
       scan_Q = crossover(scan_A, scan_B, scan_Q)
-    elif :
+    elif False:
       scan_Q = addNoise(scan_Q)
 
 
-    if :
+    if False:
       scan_Q = selectSubset(scan_A, scan_B, scan_Q)
-    elif :
+    elif False:
       scan_Q = addNoise(scan_Q)
 
     #scan_Q = masking()
@@ -3036,10 +3038,19 @@ class LaserDatasetSimTriplets(Dataset):
     return self.record[idx]
 
 
+  def addGaussianNoise(scan_img):
+    print("todo")
+    return scan_img
+
+  def addSaltPepperNoise(scan_img):
+    print("todo")
+    return scan_img
+  
   def addNoise(scan_Q):
     if self.gaussian:
-
+      scan_Q = addGaussianNoise(scan_Q)
     if self.salt_pepper:
+      scan_Q = addSaltPepperNoise(scan_Q)
 
 
     return scan_Q
@@ -3079,31 +3090,65 @@ class LaserDataset(Dataset):
       total_scans = total_scans + bag_dates_scan_lengths[i][2]
 
     self.size = total_scans
+    self.img_width = 256
+    self.img_height = 256
+    self.img_size = self.img_height * self.img_width
+    self.sp_rate = 0.01 #probability of s&p for any given pixel
+    self.clip_range = self.img_width / 4
+    self.rotation_range = 45 #degrees
+    self.min_subset_subtend = 20
+    self.max_subset_subtend = 200
+    self.field_of_view = 270
+    self.start_angle = -135
 
   def PNGtoNPA(self, file_name):
     im = cv2.imread(file_name)
+#    im = im[:, :, 0]
     return im
 
   def __len__(self):
     return self.size
 
   def __getitem__(self, idx):
-    input_scan = getSpecificItem(idx)
+    input_scan = self.getSpecificItem(idx)
     recreation_target_scan = copy.deepcopy(input_scan)
 
-
-
-
+    #print(input_scan)
+    ofname = "presubinput.png"
+    scipy.misc.imsave(ofname, input_scan)
+    rfname = "presubrec.png"
+    scipy.misc.imsave(rfname, recreation_target_scan)
 
     #TODO: with some probability, invoke one or more of the following:
-    input_scan = addGaussianNoise(input_scan)
-    input_scan = addSaltPepperNoise(input_scan)
-    input_scan, recreation_target_scan = induceClip(input_scan, recreation_target_scan)
-    input_scan, recreation_target_scan = induceFlip(input_scan, recreation_target_scan)
-    input_scan, recreation_target_scan = induceRotation(input_scan, recreation_target_scan)
-    input_scan, recreation_target_scan = selectSubset(input_scan, recreation_target_scan)
+    #TODO: implement gaussina noise .... maybe if we go to higher resolution
+    #input_scan = addGaussianNoise(input_scan)
+
+    #input_scan = self.addSaltPepperNoise(input_scan)
+    #input_scan, recreation_target_scan = self.induceClip(input_scan, recreation_target_scan)
+    #input_scan, recreation_target_scan = self.induceFlipY(input_scan, recreation_target_scan)
+    #input_scan, recreation_target_scan = self.induceFlipX(input_scan, recreation_target_scan)
+    #input_scan, recreation_target_scan = self.induceRotation(input_scan, recreation_target_scan)
+    input_scan, recreation_target_scan = self.selectSubset(input_scan, recreation_target_scan)
+
+    #print(input_scan)
+    ofname = "input.png"
+    scipy.misc.imsave(ofname, input_scan)
+    rfname = "rec.png"
+    scipy.misc.imsave(rfname, recreation_target_scan)
+
+    input_scan = self.transformForTorch(input_scan)
+    recreation_target_scan = self.transformForTorch(recreation_target_scan)
 
     return input_scan, recreation_target_scan
+
+  def transformForTorch(self, scan):
+    if self.transform:
+      scan = self.transform(scan)
+
+    scan = scan[0, :, :]
+    scan = scan.unsqueeze(0)
+
+    return scan
 
   def getSpecificItem(self, idx):
     file_base = ""
@@ -3129,37 +3174,65 @@ class LaserDataset(Dataset):
       prev_seen = seen
 
     scan = self.PNGtoNPA(file_base+file_mid+".png")
-    if self.transform:
-      scan = self.transform(scan)
-
-    scan = scan[0, :, :]
-    scan = scan.unsqueeze(0)
 
     return scan
 
-  def addGaussianNoise(scan_img):
+  def addGaussianNoise(self, scan_img):
     print("todo")
     return scan_img
 
-  def addSaltPepperNoise(scan_img):
-    print("todo")
+  def addSaltPepperNoise(self, scan_img):
+    for i in range(int(self.sp_rate * self.img_size)):
+      col = random.randint(0, self.img_width - 1)
+      row = random.randint(0, self.img_height - 1)
+      if scan_img[row, col].all() > 0.5:
+        scan_img[row, col, :] = 0
+      else:
+        scan_img[row, col, :] = 255
     return scan_img
 
-  def induceClip(input_scan_img, recreation_target_img):
-    print("todo")
-    return scan_img, recreation_target_img
+  def induceClip(self, input_scan_img, recreation_target_img):
+    nx = self.img_width
+    ny = self.img_height
+    x = np.arange(nx) - (nx - 1) / 2.0
+    y = np.arange(ny) - (ny - 1) / 2.0
+    X, Y = np.meshgrid(x, y)
+    d_mask = np.sqrt(X**2 + Y**2)
+    input_scan_img[d_mask > self.clip_range] = 0
+    recreation_target_img[d_mask > self.clip_range] = 0
 
-  def induceFlip(input_scan_img, recreation_target_img):
-    print("todo")
-    return scan_img, recreation_target_img
+    return input_scan_img, recreation_target_img
 
-  def induceRotation(input_scan_img, recreation_target_img):
-    print("todo")
-    return scan_img, recreation_target_img
+  def induceFlipX(self, input_scan_img, recreation_target_img):
+    input_scan_img[:, :, 0] = np.flip(input_scan_img[:, :, 0], 1)
+    recreation_target_img[:, :, 0] = np.flip(recreation_target_img[:, :, 0], 1)
+    input_scan_img[:, :, 1] = np.flip(input_scan_img[:, :, 1], 1)
+    recreation_target_img[:, :, 1] = np.flip(recreation_target_img[:, :, 1], 1)
+    input_scan_img[:, :, 2] = np.flip(input_scan_img[:, :, 2], 1)
+    recreation_target_img[:, :, 2] = np.flip(recreation_target_img[:, :, 2], 1)
+    return input_scan_img, recreation_target_img
 
-  def selectSubset(input_scan_img, recreation_target_img):
-    print("todo")
-    return scan_img, recreation_target_img
+  def induceFlipY(self, input_scan_img, recreation_target_img):
+    input_scan_img[:, :, 0] = np.flip(input_scan_img[:, :, 0], 0)
+    recreation_target_img[:, :, 0] = np.flip(recreation_target_img[:, :, 0], 0)
+    input_scan_img[:, :, 1] = np.flip(input_scan_img[:, :, 1], 0)
+    recreation_target_img[:, :, 1] = np.flip(recreation_target_img[:, :, 1], 0)
+    input_scan_img[:, :, 2] = np.flip(input_scan_img[:, :, 2], 0)
+    recreation_target_img[:, :, 2] = np.flip(recreation_target_img[:, :, 2], 0)
+    return input_scan_img, recreation_target_img
+
+  def induceRotation(self, input_scan_img, recreation_target_img):
+    rotation_angle = random.randint(-self.rotation_range, self.rotation_range)
+    input_scan_img = scipy.ndimage.rotate(input_scan_img, rotation_angle, reshape=False)
+    recreation_target_img = scipy.ndimage.rotate(recreation_target_img, rotation_angle, reshape=False)
+    return input_scan_img, recreation_target_img
+
+  def selectSubset(self, input_scan_img, recreation_target_img):
+    subset_size = random.randint(self.min_subset_subtend, self.max_subset_subtend)
+    subset_start_angle = random.randint(self.start_angle, self.start_angle + self.field_of_view - subset_size)
+    subset_end_angle = subset_start_angle + subset_size
+    #TODO: find mask between angles
+    return input_scan_img, recreation_target_img
 
   def getAddress(self, idx):
     return self.record[idx]
@@ -3188,6 +3261,6 @@ def CurateTrainTest():
 
   #train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=16, shuffle=True)
   #test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
-
   #return train_loader, test_loader
+
   return laser_dataset_train, laser_dataset_test

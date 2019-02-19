@@ -223,7 +223,7 @@ def testVAE(test_loader, vae, epoch):
 
       input_scan = Variable(input_scan)
       input_scan = input_scan.cuda()
-      recreation_target = Variable(recreation_target
+      recreation_target = Variable(recreation_target)
       recreation_target = recreation_target.cuda()
       mask_x = Variable(mask_x)
       mask_x = mask_x.cuda()
