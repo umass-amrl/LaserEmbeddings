@@ -79,9 +79,19 @@ def weighted_pairwise_distance(rec, target, weights):
 
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, logvar, weights):
-    BCE = weighted_pairwise_distance(recon_x.view(-1, 256 * 256), x.view(-1, 256 * 256), weights)
-    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    return BCE + KLD, KLD
+  BCE = weighted_pairwise_distance(recon_x.view(-1, 256 * 256), x.view(-1, 256 * 256), weights)
+  KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+  return BCE + KLD, KLD
+
+def contrastive_similarity_loss(sim_scores_A, sim_scores_B, labels):
+  sim_diff = torch.add(sim_scores_A, -sim_scores_B)
+  loss = torch.sum(torch.clamp(torch.mul(sim_diff, labels), 0.0, 1.0))
+  return loss
+
+def similarityAccuracy(sim_scores_A, sim_scores_B, labels):
+  sim_diff = torch.add(-sim_scores_A, sim_scores_B)
+  acc = torch.sum(torch.ceil(torch.mul(sim_diff, labels))) / labels.size()
+  return acc
 
 ######################### TRAIN #########################
 
@@ -90,8 +100,8 @@ def trainSimNet(train_loader, vae, simnet_trainer, epoch, log_interval):
   vae.eval()
   simnet_trainer.train()
   for batch_idx, (scan_A, scan_B, scan_Q, label) in enumerate(train_loader):
-    #TODO: get the right label
-
+    label = Variable(label)
+    label = label.cuda()
     with torch.no_grad():
       scan_A = Variable(scan_A)
       scan_B = Variable(scan_B)
@@ -105,13 +115,14 @@ def trainSimNet(train_loader, vae, simnet_trainer, epoch, log_interval):
 
     sim_score_A, sim_score_B = simnet_trainer(mu_A, mu_B, mu_Q)
 
-    #TODO: compute loss
+    #TODO: possibly add weights to sim score penalties conditioned 
+    #      on the noise function. would need to add dataloader support
+    loss = contrastive_similarity_loss(sim_score_A, sim_score_B, label)
 
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
-    #TODO: may need a different way of getting batch size
     losses.update(loss.item(), scan_Q.size(0))
     emb_norms.update(loss_embed.item(), scan_Q.size(0))
     if batch_idx % log_interval == 0:
@@ -180,9 +191,9 @@ def testSimNet(test_loader, vae, simnet_trainer, epoch):
   vae.eval()
   simnet.eval()
   with torch.no_grad():
-    for batch_idx, (scan_A, scan_B, scan_Q) in enumerate(test_loader):
-      #TODO: need labels from dataset
-
+    for batch_idx, (scan_A, scan_B, scan_Q, label) in enumerate(test_loader):
+      label = Variable(label)
+      label = label.cuda()
       scan_A = Variable(scan_A)
       scan_B = Variable(scan_B)
       scan_Q = Variable(scan_Q)
@@ -194,12 +205,10 @@ def testSimNet(test_loader, vae, simnet_trainer, epoch):
       _, mu_Q, _ = vae(scan_Q)
       sim_score_A, sim_score_B = simnet_trainer(mu_A, mu_B, mu_Q)
 
-
-
-      #TODO: compute accuracy
-      acc = 0.0
+      acc = similarityAccuracy(sim_score_A, sim_score_B, label)
       accs.update(acc, scan_Q.size(0))
 
+  print('\nTest set: Average acc: {:.4f}\n'.format(acc.avg))
   return accs.avg
 
 def testVAE(test_loader, vae, epoch):
@@ -237,7 +246,6 @@ def testVAE(test_loader, vae, epoch):
 ##  plotter.plot('acc', 'test', epoch, accs.avg)
 ##  plotter.plot('loss', 'test', epoch, losses.avg)
   return losses.avg
-
 
 ######################### SAVING AND LOADING #########################
 
@@ -316,11 +324,6 @@ def main():
     model = SimNetTrainer(model)
     #checkpoint_to_load = 'model_checkpoints/current/'
 
-  #TODO: set up databases for different training techniques and different networks
-  laser_dataset_train, laser_dataset_test = cptn.CurateTrainTest()
-  train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=16, shuffle=True)
-  test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
-
   start_epoch = 1
   resume = True
   best_acc = 0.0
@@ -330,12 +333,14 @@ def main():
     model, start_epoch, best_acc = loadNetwork(model, checkpoint_to_load)
   model = model.cuda()
 
+  laser_dataset_train, laser_dataset_test = cptn.CurateTrainTest()
+  train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=16, shuffle=True)
+  test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
+
   #learning_rate = 0.001
   #momentum = 0.9
   #optimizer = optim.SGD(tnet.parameters(), lr=learning_rate, momentum=momentum)
   optimizer = optim.Adam(model.parameters())
-
-  #TODO: sim ranking loss
 
   epochs = 4000
   log_interval = 20

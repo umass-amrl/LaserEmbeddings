@@ -2966,8 +2966,16 @@ class LaserDatasetSimTriplets(Dataset):
       total_scans = total_scans + bag_dates_scan_lengths[i][2]
 
     self.size = total_scans
-    self.gaussian = False
-    self.salt_pepper = False
+    self.img_width = 256
+    self.img_height = 256
+    self.img_size = self.img_height * self.img_width
+    self.sp_rate = 0.01 #probability of s&p for any given pixel
+    self.clip_range = self.img_width / 4
+    self.rotation_range = 45 #degrees
+    self.min_subset_subtend = 20
+    self.max_subset_subtend = 200
+    self.field_of_view = 270
+    self.start_angle = -135
 
   def PNGtoNPA(self, file_name):
     im = cv2.imread(file_name)
@@ -2981,28 +2989,56 @@ class LaserDatasetSimTriplets(Dataset):
     scan_A = getSpecificItem(idx)
     scan_B = getSpecificItem(b_idx)
     scan_Q = copy.deepcopy(scan_A)
-    if False:
+
+    # label == 0 ==> scan_A is more similar, label == 1 ==> scan_B is more similar
+    label = np.array([-1.0])
+    mod_B = random.randint(0, 1)
+    if mod_B == 1:
+      label = np.array([1.0])
       scan_Q = copy.deepcopy(scan_B)
 
-    #TODO: construct scan_Q by randomly (or not) deciding which curriculum to apply:
-    if False:
-      scan_Q = addNoise(scan_Q)
+    #ofname = "input.png"
+    #scipy.misc.imsave(ofname, input_scan)
+    #rfname = "rec.png"
+    #scipy.misc.imsave(rfname, recreation_target_scan)
 
-    if False:
-      scan_Q = crossover(scan_A, scan_B, scan_Q)
-    elif False:
-      scan_Q = addNoise(scan_Q)
-
-
-    if False:
-      scan_Q = selectSubset(scan_A, scan_B, scan_Q)
-    elif False:
-      scan_Q = addNoise(scan_Q)
-
+    #TODO: maybe do gaussian noise sometime
+    #scan_Q = addGaussianNoise(scan_Q)
+    #TODO: maybe do masking sometime
     #scan_Q = masking()
 
+    #TODO: construct scan_Q by randomly (or not) deciding which curriculum to apply:
+    #TODO: TEST EACH NOISE FUNCTION
+    #scan_Q = self.addSaltPepperNoise(scan_Q)
 
-    return scan_A, scan_B, scan_Q
+    #scan_Q = self.induceClip(scan_Q)
+
+    #scan_Q = self.induceFlipX(scan_Q)
+
+    #scan_Q = self.induceFlipY(scan_Q)
+
+    #scan_Q = self.induceRotate(scan_Q)
+
+    #if mod_B == 0:
+    #  scan_Q = self.crossover(scan_B, scan_Q)
+    #elif mod_B == 1:
+    #  scan_Q = self.crossover(scan_A, scan_Q)
+    #else:
+    #  print("mod_b is out of bounds")
+
+    #mask = self.getSubsetMask()
+    #scan_Q[mask == 0] = 0
+
+    #ofname = "input.png"
+    #scipy.misc.imsave(ofname, input_scan)
+    #rfname = "rec.png"
+    #scipy.misc.imsave(rfname, recreation_target_scan)
+
+    label = torch.from_numpy(label)
+    scan_A = self.transformForTorch(scan_A)
+    scan_B = self.transformForTorch(scan_B)
+    scan_Q = self.transformForTorch(scan_Q)
+    return scan_A, scan_B, scan_Q, label
 
   def getSpecificItem(self, idx):
     file_base = ""
@@ -3028,6 +3064,13 @@ class LaserDatasetSimTriplets(Dataset):
       prev_seen = seen
 
     scan = self.PNGtoNPA(file_base+file_mid+".png")
+
+    return scan
+
+  def getAddress(self, idx):
+    return self.record[idx]
+
+  def transformForTorch(self, scan):
     if self.transform:
       scan = self.transform(scan)
 
@@ -3036,32 +3079,143 @@ class LaserDatasetSimTriplets(Dataset):
 
     return scan
 
-  def getAddress(self, idx):
-    return self.record[idx]
-
-
   def addGaussianNoise(scan_img):
     print("todo")
     return scan_img
 
-  def addSaltPepperNoise(scan_img):
-    print("todo")
-    return scan_img
-  
-  def addNoise(scan_Q):
-    if self.gaussian:
-      scan_Q = addGaussianNoise(scan_Q)
-    if self.salt_pepper:
-      scan_Q = addSaltPepperNoise(scan_Q)
-
-
+  def addSaltPepperNoise(self, scan_Q):
+    for i in range(int(self.sp_rate * self.img_size)):
+      col = random.randint(0, self.img_width - 1)
+      row = random.randint(0, self.img_height - 1)
+      if scan_Q[row, col].all() > 0.5:
+        scan_Q[row, col, :] = 0
+      else:
+        scan_Q[row, col, :] = 255
     return scan_Q
 
-  def crossover(scan_A, scan_B):
-    return crossed_over_scan
+  def induceClip(self, scan_Q):
+    nx = self.img_width
+    ny = self.img_height
+    x = np.arange(nx) - (nx - 1) / 2.0
+    y = np.arange(ny) - (ny - 1) / 2.0
+    X, Y = np.meshgrid(x, y)
+    d_mask = np.sqrt(X**2 + Y**2)
+    input_scan_img[d_mask > self.clip_range] = 0
+    return scan_Q
 
-  def selectSubset(superset_scan, selection_window):
-    return subset_scan
+  def induceFlipX(self, scan_Q):
+    scan_Q[:, :, 0] = np.flip(scan_Q[:, :, 0], 1)
+    scan_Q[:, :, 1] = np.flip(scan_Q[:, :, 1], 1)
+    scan_Q[:, :, 2] = np.flip(scan_Q[:, :, 2], 1)
+    return scan_Q
+
+  def induceFlipY(self, scan_Q):
+    scan_Q[:, :, 0] = np.flip(scan_Q[:, :, 0], 0)
+    scan_Q[:, :, 1] = np.flip(scan_Q[:, :, 1], 0)
+    scan_Q[:, :, 2] = np.flip(scan_Q[:, :, 2], 0)
+    return scan_Q
+
+  def induceRotation(self, scan_Q):
+    rotation_angle = random.randint(-self.rotation_range, self.rotation_range)
+    scan_Q = scipy.ndimage.rotate(scan_Q, rotation_angle, reshape=False)
+    return scan_Q
+
+  def crossover(minority_scan, scan_Q):
+    default_max_subset_subtend = self.max_subset_subtend
+    self.max_subset_subtend = 100
+    mask = self.getSubsetMask()
+    #scan_Q[mask == 0] = scan_A
+    #scan_Q[mask == 255] = scan_B
+    scan_Q[mask == 255] = minority_scan
+    self.max_subset_subtend = default_max_subset_subtend
+    return scan_Q
+
+  def getSubsetMask(self, scan_Q):
+    subset_size = random.randint(self.min_subset_subtend, self.max_subset_subtend)
+    subset_start_angle = random.randint(self.start_angle, self.start_angle + self.field_of_view - subset_size)
+    subset_end_angle = subset_start_angle + subset_size
+
+    origin = (127, 127)
+    cneg135 = (0, 0)
+    cneg45 = (256, 0)
+    c45 = (256, 256)
+    c135 = (0, 256)
+    corner_list = [c135, c45, cneg45, cneg135]
+    angles = [135, 45, -45, -135]
+    polygon = [origin]
+
+    polygon = self.findSquareIntersect(subset_end_angle, polygon)
+
+    for i in range(len(angles)):
+      if subset_end_angle > angles[i] and subset_start_angle < angles[i]:
+        polygon.append(corner_list[i])
+
+    polygon = self.findSquareIntersect(subset_start_angle, polygon)
+
+    # find mask between angles
+    PILimg = Image.new('L', (self.img_width, self.img_height), 0)
+    ImageDraw.Draw(PILimg).polygon(polygon, outline=255, fill=255)
+    mask = np.array(PILimg)
+
+    return mask
+
+  def findSquareIntersect(self, angle, polygon):
+    new_vertex = (-1, -1)
+    cneg135 = (0, 0)
+    cneg45 = (self.img_width, 0)
+    c45 = (self.img_width, self.img_height)
+    c135 = (0, self.img_height)
+    deg_to_rad = 3.14159 / 180.0
+    side_proj_norm = 0.70711 # 1/sqrt(2)
+
+    # assume: -180 <= start < end <= 180
+    if angle < -135:
+      off_center = int((math.sin(deg_to_rad * angle) / side_proj_norm) * (self.img_height / 2))
+      new_vertex = (0, min((self.img_height / 2) + off_center, self.img_height))
+      polygon.append(new_vertex)
+
+    elif angle == -135:
+      polygon.append(cneg135)
+
+    elif angle < -45:
+      off_center = int((math.cos(deg_to_rad * angle) / side_proj_norm) * (self.img_width / 2))
+      new_vertex = (min((self.img_width / 2) + off_center, self.img_width), 0)
+      polygon.append(new_vertex)
+
+    elif angle == -45:
+      polygon.append(cneg45)
+
+    elif angle < 45:
+      off_center = int((math.sin(deg_to_rad * angle) / side_proj_norm) * (self.img_height / 2))
+      new_vertex = (256, min((self.img_height / 2) + off_center, self.img_height))
+      polygon.append(new_vertex)
+
+    elif angle == 45:
+      polygon.append(c45)
+
+    elif angle < 135:
+      off_center = int((math.cos(deg_to_rad * angle) / side_proj_norm) * (self.img_width / 2))
+      new_vertex = (min((self.img_width / 2) + off_center, self.img_width), 256)
+      polygon.append(new_vertex)
+
+    elif angle == 135:
+      polygon.append(c135)
+
+    elif angle <= 180:
+      off_center = int((math.sin(deg_to_rad * angle) / side_proj_norm) * (self.img_height / 2))
+      new_vertex = (0, min((self.img_height / 2) + off_center, self.img_height))
+      polygon.append(new_vertex)
+
+    else:
+      print("ill-defined end_angle")
+
+    return polygon
+
+
+
+
+
+
 
   def masking():
     print("todo")
@@ -3105,7 +3259,6 @@ class LaserDataset(Dataset):
 
   def PNGtoNPA(self, file_name):
     im = cv2.imread(file_name)
-#    im = im[:, :, 0]
     return im
 
   def __len__(self):
@@ -3115,11 +3268,10 @@ class LaserDataset(Dataset):
     input_scan = self.getSpecificItem(idx)
     recreation_target_scan = copy.deepcopy(input_scan)
 
-    #print(input_scan)
-    ofname = "presubinput.png"
-    scipy.misc.imsave(ofname, input_scan)
-    rfname = "presubrec.png"
-    scipy.misc.imsave(rfname, recreation_target_scan)
+    #ofname = "presubinput.png"
+    #scipy.misc.imsave(ofname, input_scan)
+    #rfname = "presubrec.png"
+    #scipy.misc.imsave(rfname, recreation_target_scan)
 
     #TODO: with some probability, invoke one or more of the following:
     #TODO: implement gaussina noise .... maybe if we go to higher resolution
@@ -3130,13 +3282,12 @@ class LaserDataset(Dataset):
     #input_scan, recreation_target_scan = self.induceFlipY(input_scan, recreation_target_scan)
     #input_scan, recreation_target_scan = self.induceFlipX(input_scan, recreation_target_scan)
     #input_scan, recreation_target_scan = self.induceRotation(input_scan, recreation_target_scan)
-    input_scan, recreation_target_scan = self.selectSubset(input_scan, recreation_target_scan)
+    #input_scan, recreation_target_scan = self.selectSubset(input_scan, recreation_target_scan)
 
-    #print(input_scan)
-    ofname = "input.png"
-    scipy.misc.imsave(ofname, input_scan)
-    rfname = "rec.png"
-    scipy.misc.imsave(rfname, recreation_target_scan)
+    #ofname = "input.png"
+    #scipy.misc.imsave(ofname, input_scan)
+    #rfname = "rec.png"
+    #scipy.misc.imsave(rfname, recreation_target_scan)
 
     input_scan = self.transformForTorch(input_scan)
     recreation_target_scan = self.transformForTorch(recreation_target_scan)
@@ -3234,14 +3385,8 @@ class LaserDataset(Dataset):
     subset_start_angle = random.randint(self.start_angle, self.start_angle + self.field_of_view - subset_size)
     subset_end_angle = subset_start_angle + subset_size
 
-    print(subset_start_angle)
-    print(subset_end_angle)
-
-    subset_start_angle = -116
-    subset_end_angle = 69
-
-    input_img = Image.fromarray(input_scan_img)
-    target_img = Image.fromarray(recreation_target_img)
+    #input_img = Image.fromarray(input_scan_img)
+    #target_img = Image.fromarray(recreation_target_img)
 
     origin = (127, 127)
     cneg135 = (0, 0)
@@ -3265,12 +3410,10 @@ class LaserDataset(Dataset):
     ImageDraw.Draw(PILimg).polygon(polygon, outline=255, fill=255)
     mask = np.array(PILimg)
 
-    print(mask.shape)
+    input_scan_img[mask == 0] = 0
+    recreation_target_img[mask == 0] = 0
 
-    return mask, mask
-
-    #return input_scan_img, recreation_target_img
-
+    return input_scan_img, recreation_target_img
 
   def findSquareIntersect(self, angle, polygon):
     new_vertex = (-1, -1)
@@ -3307,13 +3450,12 @@ class LaserDataset(Dataset):
       polygon.append(c45)
 
     elif angle < 135:
-      print("here")
       off_center = int((math.cos(deg_to_rad * angle) / side_proj_norm) * (self.img_width / 2))
       new_vertex = (min((self.img_width / 2) + off_center, self.img_width), 256)
       polygon.append(new_vertex)
 
     elif angle == 135:
-      polygon.append(c145)
+      polygon.append(c135)
 
     elif angle <= 180:
       off_center = int((math.sin(deg_to_rad * angle) / side_proj_norm) * (self.img_height / 2))

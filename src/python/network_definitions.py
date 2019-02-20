@@ -163,7 +163,7 @@ class SimNet(nn.Module):
      x = torch.cat(db_item_emb, query_emb)
      x = self.relu(self.fc1(x))
      x = self.relu(self.fc2(x))
-     sim_score= self.sigmoid(self.fc3(x))
+     sim_score = self.sigmoid(self.fc3(x))
      return sim_score
 
 class SimNetTrainer(nn.Module):
