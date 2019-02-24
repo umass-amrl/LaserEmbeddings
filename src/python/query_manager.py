@@ -8,14 +8,12 @@ Created on Tue Mar  6 17:35:43 2018
 
 """
 
-#TODO: refactor into separate files for each network, and
-#      separate files for nominal training versus special cases / debugging
-
 from __future__ import print_function
 
 import rospy
 #from std_msgs.msg import string
-from std_msgs.msg import String
+#from std_msgs.msg import String
+from gui_msgs.msg import LaserQueryImage
 
 
 import os
@@ -29,7 +27,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import convert_png_to_numpy as cptn
 import torch.backends.cudnn as cudnn
-from network_definitions import VAE, TripletNet
+from network_definitions import VAE, SimNet
 from scipy import spatial
 from visdom import Visdom
 from torch.autograd import Variable
@@ -58,36 +56,83 @@ from sklearn.decomposition import PCA, KernelPCA
 
 ############################## LOADING STUFF ##############################
 
-#TODO: might not need
-def loadNetwork():
-  model = net3.Net3()
-  model = model.cuda()
-  tnet = net3.TripletNet(model)
-  tnet = tnet.cuda()
-
-  checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
-
+def loadNetwork(model, checkpoint_to_load):
   if os.path.isfile(checkpoint_to_load):
     print("=> loading checkpoint '{}'".format(checkpoint_to_load))
     checkpoint = torch.load(checkpoint_to_load)
-    tnet.load_state_dict(checkpoint['state_dict'])
+    model.load_state_dict(checkpoint['state_dict'])
     print("=> loaded checkpoint '{}' (epoch {})"
             .format(checkpoint_to_load, checkpoint['epoch']))
   else:
     print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
 
-  n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
+  n_parameters = sum([p.data.nelement() for p in model.parameters()])
   print('  + Number of params: {}'.format(n_parameters))
 
-  return tnet
+  return model
 
 def loadEmbeddingDatabase():
-  database_set = cptn.SpecialQuerySet()
-  global dn, dr
-  dn, dr = database_set.getSpecificItem(0)
+  database_set = cptn.CurateQuerySet()
   global embeddings_database
-  #embeddings_database = generateEmbeddings(database_set)
-  embeddings_database = []
+  embeddings_database = generateEmbeddings(database_set)
+
+def generateEmbeddings(database_set):
+  vae.eval()
+  database_len = len(database_set)
+  input_scan, _ = test_set[0]
+  input_scan = input_scan.unsqueeze(0)
+  with torch.no_grad():
+    input_scan = Variable(input_scan)
+  input_scan = input_scan.cuda()
+  _, emb, _ = vae(input_scan)
+  emb = emb.cpu()
+  np_emb = emb.data.numpy()
+  embeddings = np.empty([database_len, np_emb.size])
+  for idx in range(database_len):
+    if idx % 100 == 0:
+      print(idx+" / "+database_len)
+
+    input_scan, _ = test_set[idx]
+    input_scan = input_scan.unsqueeze(0)
+    with torch.no_grad():
+      input_scan = Variable(input_scan)
+    input_scan = input_scan.cuda()
+    _, emb, _ = vae(input_scan)
+
+    emb = emb.cpu()
+    np_emb = emb.data.numpy()
+    embeddings[idx, :] = np_emb
+
+  return embeddings
+
+def generateNetQueryEmbedding(msg):
+  vae.eval()
+  #TODO: get input_scan from msg
+  width = msg.width
+  height = msg.height
+  #TODO: test
+  input_scan = np.asarray(msg.row_major_bitmap)
+
+  rfname = "sample_results/rec_"+str(idx+1)+".png"
+  scipy.misc.imsave(rfname, np_rec)
+
+  input_scan = transformForTorch(input_scan)
+  with torch.no_grad():
+    input_scan = Variable(input_scan)
+  input_scan = input_scan.cuda()
+  _, emb, _ = vae(input_scan)
+  emb = emb.cpu()
+  np_emb = emb.data.numpy()
+  return np_emb
+
+def transformForTorch(scan):
+  to_tensor = transforms.ToTensor()
+  normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+  transform = transforms.Compose([to_tensor, normalize])
+  scan = transform(scan)
+  scan = scan[0, :, :]
+  scan = scan.unsqueeze(0)
+  return scan
 
 ############################## VISUALIZATION ##############################
 
@@ -257,57 +302,60 @@ def advancedQuery():
     for j in range(len(query_results[i])):
       print(query_results[i][j])
 
-def NetQuery():
-  print("not defined yet")
+def NetQuery(q):
+  K = 300
+
+  query_results = []
+  for idx in range(embeddings_database.size(0)):
+    if idx % 1000 == 0:
+      print(str(idx)+" / "+str(embeddings_database.size()))
+    db_item = database[idx, :]
+    similarity = simnet(db_item, q)
+    single_scan = []
+    if len(query_results) < K:
+      single_scan.append(idx)
+      single_scan.append(similarity)
+      query_result.append(single_scan)
+    else:
+      if similarity > query_results[0][1]:
+        single_scan.append(idx)
+        single_scan.append(similarity)
+        query_result[0] = single_scan
+        # reverse sort based on similarity
+        query_results.sort(key = lambda k: (k[1]), reverse=True)
+
+  return query_results
 
 def queryCallback(msg):
-  rospy.loginfo(rospy.get_caller_id() + "I heard %s", msg.data)
-  if msg.data == "FO":
-    query_set = cptn.FeatureOnlyTestSet()
-    #qn, qr = query_set.getSpecificItem(0)
-    #d_scan = dn[0, 0, :]
-    #q_scan = qn[0, 0, :]
-    #print("difference")
-    #print(d_scan - q_scan)
-    query_embeddings = generateEmbeddings(query_set)
-    global embeddings_database
-    embeddings_database = query_embeddings
-    visEmbeddingDecoder()
+  #TODO: enumerate query processing types
+  if True:
+    q = generateNetQueryEmbedding(msg)
+    query_results = NetQuery(q)
+    publishQueryResults(query_results)
+  else:
+    print("not yet")
 
-    diff = []
-    for j in range(len(query_embeddings[0])):
-      diff.append(query_embeddings[1][j] - query_embeddings[0][j])
-    query_embeddings.append(diff)
-
-    #for i in range(len(query_embeddings)):
-    print(query_embeddings[0])
-#    for i in range(1):
-#      for j in range(len(query_embeddings[i])):
-#        print(str(query_embeddings[i][j])+", ")
-#      print("\n\n")
-
-
-    #############simpleQuery(query_embeddings)
-  elif msg.data == "MC":
-    query_set = cptn.MonteCarloTestSet()
-    query_embeddings = generateEmbeddings(query_set)
-    advancedQuery()
+def publishQueryResults():
+  
 
 ############################## MAIN ##############################
 
 def main():
-  global tnet 
-  tnet = loadNetwork()
-  loadEmbeddingDatabase()
-
-  #NOTE: uncomment to turn on embedding interpolation - saved in recreations.txt
-  #visEmbeddingDecoder()
-
+  #TODO: take network versions, query types, and datasets as command line args
+  vae = VAE()
+  checkpoint_to_load = 'model_checkpoints/archive/Cartesian/VAE_10k/checkpoint_test_83.pth.tar'
+  vae = loadNetwork(vae, checkpoint_to_load)
+  loadEmbeddingDatabase(vae)
   print("database size:")
   print(len(embeddings_database))
 
+  global simnet = SimNet()
+  checkpoint_to_load = 'model_checkpoints/archive/Cartesian/SimNet_10k/checkpoint_test_5.pth.tar'
+  global simnet = loadNetwork(simnet, checkpoint_to_load)
+
   rospy.init_node('QueryManager', anonymous=True)
-  rospy.Subscriber("DataDirectory", String, queryCallback)
+  rospy.Subscriber('LaserQueryImage', QueryImage, queryCallback)
+  #global query_results_publisher = rospy.Publisher('', messagetype, queue_size=1)
 
   print("Ready to answer queries")
 

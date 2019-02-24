@@ -16,6 +16,7 @@
 #include "gui_msgs/GuiMouseClickEvent.h"
 #include "gui_msgs/LidarDisplayMsg.h"
 #include "gui_msgs/ScanFeatureMsg.h"
+#include "gui_msgs/QueryImageMsg.h"
 #include "../perception_tools/perception_2d.h"
 #include "shared_structs.h"
 
@@ -34,7 +35,8 @@ ros::Publisher display_publisher_;
 ros::Publisher selection_publisher_;
 
 gui_msgs::LidarDisplayMsg display_message_;
-gui_msgs::ScanFeatureMsg selection_message_;
+//gui_msgs::ScanFeatureMsg selection_message_;
+gui_msgs::QueryImageMsg selection_message_;
 
 vector<string> bag_names_;
 string bag_name_;
@@ -47,8 +49,8 @@ vector<int> id_in_progress_;
 bool normalized_ = false;
 bool side_by_side_viewing_ = false;
 
-float start_angle_ = -135.0;
-float field_of_view_ = 270.0;
+float start_angle_ = -135.0; // degrees
+float field_of_view_ = 270.0; // degrees
 float min_range = 0.0;    // meters
 float max_range = 10.0;   // meters
 float angular_res = 0.25; // degrees
@@ -159,14 +161,14 @@ void pubScan() {
   display_publisher_.publish(display_message_);
 }
 
-void publishQuery() {
-  selection_message_.timestamp = ros::Time::now().toSec();
-  selection_message_.ranges = scan_feature_.ranges;
-  selection_message_.start_angle = scan_feature_.start_angle;
-  selection_message_.end_angle = scan_feature_.end_angle;
-  selection_message_.type = scan_feature_.type;
-  selection_publisher_.publish(selection_message_);
-}
+//void publishQuery() {
+//  selection_message_.timestamp = ros::Time::now().toSec();
+//  selection_message_.ranges = scan_feature_.ranges;
+//  selection_message_.start_angle = scan_feature_.start_angle;
+//  selection_message_.end_angle = scan_feature_.end_angle;
+//  selection_message_.type = scan_feature_.type;
+//  selection_publisher_.publish(selection_message_);
+//}
 
 //void saveScan(const string filename) {
 //  vector<float> scan = all_scans_[current_view_ - 1];
@@ -193,7 +195,7 @@ void saveScanFeature(string filename) {
   }
   outfile << "\n";
   //publishQuery(filename);
-  publishQuery();
+  //publishQuery();
 }
 
 void incrementView() {
@@ -314,6 +316,58 @@ void MouseClickCallback(const gui_msgs::GuiMouseClickEvent& msg) {
   }
 }
 
+
+
+void publishQuery(const cimg_library::CImg<uint8_t> scan_img) {
+
+  size_t width = scan_img.width();
+  size_t height = scan_img.height();
+  selection_message_.timestamp = ros::Time::now().toSec();
+  selection_message_.width = width;
+  selection_message_.height = height;
+  vector<uint8_t> row_major_bitmap;
+  for (size_t x = 0; x < width; ++x) {
+    for (size_t y = 0; y < height; ++y) {
+      row_major_bitmap.push_back(scan_img(x, y));
+    }
+  }
+  selection_message_.row_major_bitmap = row_major_bitmap;
+  selection_publisher_.publish(selection_message_);
+}
+
+cimg_library::CImg<uint8_t> convertScanFeatureToImage() {
+
+  size_t width = 256;
+  size_t height = 256;
+  size_t origin_x = 127;
+  size_t origin_y = 127;
+  float pixel_res = 0.08; //8 cm
+  cimg_library::CImg<uint8_t> scan_image(width, height);
+
+  for (size_t x = 0; x < width; ++x) {
+    for (size_t y = 0; y < height; ++y) {
+      scan_image(x, y) = 0;
+    }
+  }
+  int num_obs = int(field_of_view_ / angular_res) + 1;
+  size_t feature_start_index = (scan_feature_.start_angle - start_angle_) / angular_res;
+  size_t feature_end_index = feature_start_index + scan_feature_.ranges.size();
+  for (size_t i = 0; i < size_t(num_obs); ++i) {
+    if (i >= feature_start_index && i <= feature_end_index) {
+      if (scan_feature_.ranges[i - feature_start_index] < 0.98 * max_range) {
+        float current_angle = (start_angle_ + i * angular_res) * (M_PI/180.0);
+        Eigen::Vector2f ray_dir(cos(current_angle), sin(current_angle));
+        Eigen::Vector2f obs_loc = scan_feature_.ranges[i - feature_start_index] * ray_dir;
+        scan_image(int(obs_loc.x() / pixel_res) + origin_x, int(obs_loc.y() / pixel_res) + origin_y) = 255;
+      }
+    }
+  }
+  string scan_image_file = "TESTING.png";
+  scan_image.save_png(scan_image_file.c_str());
+  return scan_image;
+}
+
+
 void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
 
   ////////// looking through scans //////////
@@ -351,6 +405,7 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
   ////////// saving and labeling features //////////
 
   if (feature_selected_) {
+    /*
     if (msg.keycode == 0x48) { // key code for 'h' for human
       std::cout << "human feature" << std::endl;
       scan_feature_.type = 0; // human
@@ -369,16 +424,25 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
       saveScanFeature("corner_features.txt");
       feature_selected_ = false;
     }
-    else if (msg.keycode == 0x52) { // key code 82 for 'r' for reset
+    */
+    if (msg.keycode == 0x52) { // key code 82 for 'r' for reset
       std::cout << "reset" << std::endl;
       feature_selected_ = false;
     }
+    else if (msg.keycode == 0x51) { // key code 81 for 'q' for query
+      std::cout << "submitting query" << std::endl;
+      cimg_library::CImg<uint8_t> scan_img = convertScanFeatureToImage();
+      publishQuery(scan_img);
+      feature_selected_ = false;
+    }
   }
+  std::cout << msg.keycode << std::endl;
 
   if (msg.keycode == 0x57) { // key code 87, 'w' for whole
+    std::cout << "whole scan" << std::endl;
     scan_feature_.ranges = all_scans_[current_view_ - 1];
-    scan_feature_.start_angle = -135.0 * (M_PI/180.0);
-    scan_feature_.end_angle = 135.0 * (M_PI/180.0);
+    scan_feature_.start_angle = -135.0;
+    scan_feature_.end_angle = 135.0;
     feature_selected_ = true;
   }
 
@@ -616,6 +680,7 @@ void getFALKOFeatures() {
 
 }
 
+
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     std::cout << "Usage: ./AnalyzeScans <mode> (optional-->) <bag file 1> ... <bag file n>" << std::endl;
@@ -656,7 +721,12 @@ int main(int argc, char* argv[]) {
 
 
   //TODO: set up ability to immediately view query results
-
+  // need subscriber to whatever query manager publishes
+  // need to load in the matching database
+  // need to map scan indices from msg to db
+  // need to form new all_scans
+  // need swapping mechanism to go from potential queries to results
+  // need command line structure to load both datasets (db and queries (may be same / overlapping))
 
 
   std::cout << "loaded" << std::endl;
@@ -668,7 +738,8 @@ int main(int argc, char* argv[]) {
   keyboard_subscriber_ = nh.subscribe("Gui/VectorLocalization/GuiKeyboardEvents", 1, KeyboardEventCallback);
   display_publisher_ = nh.advertise<gui_msgs::LidarDisplayMsg>("Gui/VectorLocalization/Gui", 1, true);
   //selection_publisher_ = nh.advertise<std_msgs::String>("QueryFilename", 1, true);
-  selection_publisher_ = nh.advertise<gui_msgs::ScanFeatureMsg>("ScanFeature", 1, true);
+  //selection_publisher_ = nh.advertise<gui_msgs::ScanFeatureMsg>("ScanFeature", 1, true);
+  selection_publisher_ = nh.advertise<gui_msgs::QueryImageMsg>("LaserQueryImage", 1, true);
 
   ros::spin();
 
