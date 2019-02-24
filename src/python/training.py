@@ -90,12 +90,15 @@ def contrastive_similarity_loss(sim_scores_A, sim_scores_B, labels):
 
 def similarityAccuracy(sim_scores_A, sim_scores_B, labels):
   sim_diff = torch.add(-sim_scores_A, sim_scores_B)
-  acc = torch.sum(torch.ceil(torch.mul(sim_diff, labels))) / labels.size()
+  
+  #print(torch.sum(torch.ceil(torch.mul(sim_diff, labels))))
+  #print(labels.size(0))
+  acc = torch.sum(torch.ceil(torch.mul(sim_diff, labels))) / labels.size(0)
   return acc
 
 ######################### TRAIN #########################
 
-def trainSimNet(train_loader, vae, simnet_trainer, epoch, log_interval):
+def trainSimNet(train_loader, vae, simnet_trainer, optimizer, epoch, log_interval):
   losses = AverageMeter()
   vae.eval()
   simnet_trainer.train()
@@ -124,13 +127,11 @@ def trainSimNet(train_loader, vae, simnet_trainer, epoch, log_interval):
     optimizer.step()
 
     losses.update(loss.item(), scan_Q.size(0))
-    emb_norms.update(loss_embed.item(), scan_Q.size(0))
     if batch_idx % log_interval == 0:
       print('Train Epoch: {} [{}/{}]\t'
-            'Loss: {:.4f} ({:.4f}) \t'
-            'Emb_Norm: {:.2f} ({:.2f})'.format(
+            'Loss: {:.4f} ({:.4f}) \t'.format(
           epoch, batch_idx * len(scan_Q), len(train_loader.dataset),
-          losses.val, losses.avg, emb_norms.val, emb_norms.avg))
+          losses.val, losses.avg))
 
   return losses.avg
 
@@ -189,7 +190,7 @@ def trainVAE(train_loader, vae, optimizer, epoch, log_interval):
 def testSimNet(test_loader, vae, simnet_trainer, epoch):
   accs = AverageMeter()
   vae.eval()
-  simnet.eval()
+  simnet_trainer.eval()
   with torch.no_grad():
     for batch_idx, (scan_A, scan_B, scan_Q, label) in enumerate(test_loader):
       label = Variable(label)
@@ -206,9 +207,9 @@ def testSimNet(test_loader, vae, simnet_trainer, epoch):
       sim_score_A, sim_score_B = simnet_trainer(mu_A, mu_B, mu_Q)
 
       acc = similarityAccuracy(sim_score_A, sim_score_B, label)
-      accs.update(acc, scan_Q.size(0))
+      accs.update(acc.item(), scan_Q.size(0))
 
-  print('\nTest set: Average acc: {:.4f}\n'.format(acc.avg))
+  print('\nTest set: Average acc: {:.4f}\n'.format(accs.avg))
   return accs.avg
 
 def testVAE(test_loader, vae, epoch):
@@ -240,7 +241,7 @@ def testVAE(test_loader, vae, epoch):
       rec_x, mu, logvar = vae(input_scan)
       loss, loss_embed = loss_function(rec_x, recreation_target, mu, logvar, mask_x)
 
-      losses.update(loss, input_scan.size(0))
+      losses.update(loss.item(), input_scan.size(0))
 
   print('\nTest set: Average loss: {:.4f}\n'.format(losses.avg))
 ##  plotter.plot('acc', 'test', epoch, accs.avg)
@@ -313,34 +314,41 @@ def main():
     print("Unrecognized mode. Exiting")
     return
 
-  model = SimNet()
-  checkpoint_to_load = ""
-
-  if mode == 0: # Train Variational Autoencoder
-    model = VAE()
-    checkpoint_to_load = 'model_checkpoints/archive/Cartesian/VAE_repeat_init/checkpoint_train_15.pth.tar'
-
-  elif mode == 1: # Train SimNet
-    model = SimNetTrainer(model)
-    #checkpoint_to_load = 'model_checkpoints/current/'
-
   start_epoch = 1
-  resume = True
+  resume = False
   best_acc = 0.0
 
-  # optionally resume from a checkpoint
-  if resume:
-    model, start_epoch, best_acc = loadNetwork(model, checkpoint_to_load)
-  model = model.cuda()
-
-  laser_dataset_train, laser_dataset_test = cptn.CurateTrainTest()
-  train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=16, shuffle=True)
-  test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
+  vae = VAE()
+  model = SimNet()
 
   #learning_rate = 0.001
   #momentum = 0.9
   #optimizer = optim.SGD(tnet.parameters(), lr=learning_rate, momentum=momentum)
   optimizer = optim.Adam(model.parameters())
+
+  if mode == 0: # Train Variational Autoencoder
+    # optionally resume from a checkpoint
+    if resume:
+      checkpoint_to_load = 'model_checkpoints/archive/Cartesian/VAE_repeat_init/checkpoint_train_262.pth.tar'
+      vae, start_epoch, best_acc = loadNetwork(vae, checkpoint_to_load)
+    optimizer = optim.Adam(vae.parameters())
+    vae = vae.cuda()
+
+  elif mode == 1: # Train SimNet
+    checkpoint_to_load = 'model_checkpoints/archive/Cartesian/VAE_repeat_init/checkpoint_train_262.pth.tar'
+    vae, _, _ = loadNetwork(vae, checkpoint_to_load)
+    # optionally resume from a checkpoint
+    if resume:
+      checkpoint_to_load = 'model_checkpoints/archive/Cartesian/SimNet_1/checkpoint_train_XXX.pth.tar'
+      model, start_epoch, best_acc = loadNetwork(model, checkpoint_to_load)
+    model = SimNetTrainer(model)
+    optimizer = optim.Adam(model.parameters())
+    vae = vae.cuda()
+    model = model.cuda()
+
+  laser_dataset_train, laser_dataset_test = cptn.CurateTrainTest()
+  train_loader = torch.utils.data.DataLoader(laser_dataset_train, batch_size=16, shuffle=True)
+  test_loader = torch.utils.data.DataLoader(laser_dataset_test, batch_size=4, shuffle=False)
 
   epochs = 4000
   log_interval = 20
@@ -352,15 +360,15 @@ def main():
   is_most_acc_test = False
   for epoch in range(start_epoch, epochs + 1):
     if mode == 0:
-      avg_loss_train = trainVAE(train_loader, model, optimizer, epoch, log_interval)
+      avg_loss_train = trainVAE(train_loader, vae, optimizer, epoch, log_interval)
       is_least_lossy_train = avg_loss_train < best_avg_loss_train
       best_avg_loss_train = min(avg_loss_train, best_avg_loss_train)
 
-      avg_loss_test = testVAE(test_loader, model, epoch)
+      avg_loss_test = testVAE(test_loader, vae, epoch)
       is_least_lossy_test = avg_loss_test < best_avg_loss_test
       best_avg_loss_test = min(avg_loss_test, best_avg_loss_test)
 
-      shouldSave(model, is_least_lossy_train, is_least_lossy_test, epoch)
+      shouldSave(vae, is_least_lossy_train, is_least_lossy_test, epoch)
 
     elif mode == 1:
       avg_loss_train = trainSimNet(train_loader, vae, model, optimizer, epoch, log_interval)
@@ -368,8 +376,8 @@ def main():
       best_avg_loss_train = min(avg_loss_train, best_avg_loss_train)
 
       avg_acc_test = testSimNet(test_loader, vae, model, epoch)
-      is_most_acc_test = avg_acc_test < best_avg_acc_test
-      best_avg_acc_test = min(avg_acc_test, best_avg_acc_test)
+      is_most_acc_test = avg_acc_test > best_avg_acc_test
+      best_avg_acc_test = max(avg_acc_test, best_avg_acc_test)
 
       shouldSave(model, is_least_lossy_train, is_most_acc_test, epoch)
 

@@ -1,12 +1,7 @@
 #!/bin/bash
 
-#source_dir='bagData/URG-04LX/'
-#target_dir='laser_images/full_normalized/URG-04LX/'
-source_dir='bagData/UST-10LX/static_scenes'
-#target_dir='laser_images/full_normalized/UST-10LX/Corrupted_Blur'
-#target_dir='laser_images/full_normalized/UST-10LX_Natural'
-#target_dir='laser_images/full_normalized/UST-10LX_Natural/Corrupted_Blur'
-target_dir='laser_images/full_normalized/UST-10LX_Natural/static_scenes'
+source_dir='bagData/UST-10LX/Figure8'
+target_dir='laser_images/cartesian/UST-10LX/Figure8'
 #yr_mn=$1
 #full_source_dir=${source_dir}${1}
 #full_target_dir=${target_dir}${1}
@@ -22,7 +17,5 @@ for entry in `ls $full_source_dir`; do
     #~/synthesis/LaserEmbeddings/bin/BagToImages "../../../../../${full_source_dir}/${entry}" 240 4
     ~/synthesis/LaserEmbeddings/bin/BagToImages "../../../../../${source_dir}/${entry}" 270 10
     cd ../../../../../
-    #~/synthesis/LaserEmbeddings/bin/BagToImages "../../../../${source_dir}/${entry}" 270 10
-    #cd ../../../../
 done
 

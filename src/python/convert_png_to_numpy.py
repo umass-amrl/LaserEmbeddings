@@ -2970,7 +2970,7 @@ class LaserDatasetSimTriplets(Dataset):
     self.img_height = 256
     self.img_size = self.img_height * self.img_width
     self.sp_rate = 0.01 #probability of s&p for any given pixel
-    self.clip_range = self.img_width / 4
+    self.clip_range = self.img_width / 4 # must be less than img_width / 2
     self.rotation_range = 45 #degrees
     self.min_subset_subtend = 20
     self.max_subset_subtend = 200
@@ -2985,22 +2985,25 @@ class LaserDatasetSimTriplets(Dataset):
     return self.size
 
   def __getitem__(self, idx):
-    b_idx = random.randint(1, self.size)
-    scan_A = getSpecificItem(idx)
-    scan_B = getSpecificItem(b_idx)
+    b_idx = random.randint(0, self.size - 1)
+    scan_A = self.getSpecificItem(idx)
+    scan_B = self.getSpecificItem(b_idx)
     scan_Q = copy.deepcopy(scan_A)
 
     # label == 0 ==> scan_A is more similar, label == 1 ==> scan_B is more similar
-    label = np.array([-1.0])
+    #label = np.array([-1.0])
+    label = np.array([-1.0], dtype='float32')
     mod_B = random.randint(0, 1)
     if mod_B == 1:
-      label = np.array([1.0])
+      label = np.array([1.0], dtype='float32')
       scan_Q = copy.deepcopy(scan_B)
 
-    #ofname = "input.png"
-    #scipy.misc.imsave(ofname, input_scan)
-    #rfname = "rec.png"
-    #scipy.misc.imsave(rfname, recreation_target_scan)
+#    ofname = "preA.png"
+#    scipy.misc.imsave(ofname, scan_A)
+#    ofname = "preB.png"
+#    scipy.misc.imsave(ofname, scan_B)
+#    rfname = "preQ.png"
+#    scipy.misc.imsave(rfname, scan_Q)
 
     #TODO: maybe do gaussian noise sometime
     #scan_Q = addGaussianNoise(scan_Q)
@@ -3008,36 +3011,36 @@ class LaserDatasetSimTriplets(Dataset):
     #scan_Q = masking()
 
     #TODO: construct scan_Q by randomly (or not) deciding which curriculum to apply:
-    #TODO: TEST EACH NOISE FUNCTION
     #scan_Q = self.addSaltPepperNoise(scan_Q)
-
     #scan_Q = self.induceClip(scan_Q)
-
     #scan_Q = self.induceFlipX(scan_Q)
-
     #scan_Q = self.induceFlipY(scan_Q)
-
-    #scan_Q = self.induceRotate(scan_Q)
-
+    #scan_Q = self.induceRotation(scan_Q)
     #if mod_B == 0:
-    #  scan_Q = self.crossover(scan_B, scan_Q)
+    #  scan_Q = self.crossoverScan(scan_B, scan_Q)
     #elif mod_B == 1:
     #  scan_Q = self.crossover(scan_A, scan_Q)
     #else:
     #  print("mod_b is out of bounds")
-
     #mask = self.getSubsetMask()
     #scan_Q[mask == 0] = 0
 
-    #ofname = "input.png"
-    #scipy.misc.imsave(ofname, input_scan)
-    #rfname = "rec.png"
-    #scipy.misc.imsave(rfname, recreation_target_scan)
+#    ofname = "postA.png"
+#    scipy.misc.imsave(ofname, scan_A)
+#    ofname = "postB.png"
+#    scipy.misc.imsave(ofname, scan_B)
+#    rfname = "postQ.png"
+#    scipy.misc.imsave(rfname, scan_Q)
 
+    #print(label.dtype)
     label = torch.from_numpy(label)
+    #print(label.dtype)
     scan_A = self.transformForTorch(scan_A)
+    #print(scan_A.dtype)
     scan_B = self.transformForTorch(scan_B)
+    #print(scan_B.dtype)
     scan_Q = self.transformForTorch(scan_Q)
+    #print(scan_Q.dtype)
     return scan_A, scan_B, scan_Q, label
 
   def getSpecificItem(self, idx):
@@ -3100,7 +3103,7 @@ class LaserDatasetSimTriplets(Dataset):
     y = np.arange(ny) - (ny - 1) / 2.0
     X, Y = np.meshgrid(x, y)
     d_mask = np.sqrt(X**2 + Y**2)
-    input_scan_img[d_mask > self.clip_range] = 0
+    scan_Q[d_mask > self.clip_range] = 0
     return scan_Q
 
   def induceFlipX(self, scan_Q):
@@ -3120,17 +3123,17 @@ class LaserDatasetSimTriplets(Dataset):
     scan_Q = scipy.ndimage.rotate(scan_Q, rotation_angle, reshape=False)
     return scan_Q
 
-  def crossover(minority_scan, scan_Q):
+  def crossoverScan(self, minority_scan, scan_Q):
     default_max_subset_subtend = self.max_subset_subtend
     self.max_subset_subtend = 100
     mask = self.getSubsetMask()
-    #scan_Q[mask == 0] = scan_A
-    #scan_Q[mask == 255] = scan_B
-    scan_Q[mask == 255] = minority_scan
+    minority_scan[mask == 0] = 0
+    scan_Q[mask == 255] = 0
+    scan_Q = scan_Q + minority_scan
     self.max_subset_subtend = default_max_subset_subtend
     return scan_Q
 
-  def getSubsetMask(self, scan_Q):
+  def getSubsetMask(self):
     subset_size = random.randint(self.min_subset_subtend, self.max_subset_subtend)
     subset_start_angle = random.randint(self.start_angle, self.start_angle + self.field_of_view - subset_size)
     subset_end_angle = subset_start_angle + subset_size
@@ -3272,7 +3275,7 @@ class LaserDataset(Dataset):
     #scipy.misc.imsave(ofname, input_scan)
     #rfname = "presubrec.png"
     #scipy.misc.imsave(rfname, recreation_target_scan)
-
+#
     #TODO: with some probability, invoke one or more of the following:
     #TODO: implement gaussina noise .... maybe if we go to higher resolution
     #input_scan = addGaussianNoise(input_scan)
@@ -3478,14 +3481,21 @@ def CurateTrainTest():
   normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
   transform = transforms.Compose([to_tensor, normalize])
 
-  bdsl_train = [["UST-10LX/", "2016-04-17-20-32-59", 2723]]
+  bdsl_train = [["UST-10LX/small_loop/", "2016-04-17-20-32-59", 2723],
+                ["UST-10LX/small_loop/", "2016-04-17-20-34-16", 2332],
+                ["UST-10LX/small_loop/", "2016-08-17-13-08-32", 2649],
+                ["UST-10LX/small_loop/", "2016-08-17-13-16-56", 2832]]
 
-  laser_dataset_train = LaserDataset('../../laser_images/cartesian/', bdsl_train, transform=transform)
 
   #bdsl_test = [["UST-10LX/", "2016-08-17-13-18-08", 64]]
-  bdsl_test = [["UST-10LX/", "2016-04-17-20-32-59", 64]]
+  #bdsl_test = [["UST-10LX/small_loop/", "2016-04-17-20-32-59", 64]]
+  bdsl_test = [["UST-10LX/small_loop/", "2016-08-17-13-18-08", 3283]] #3283
+  #bdsl_test = [["UST-10LX/small_loop/", "2016-04-17-20-32-59", 2700]]
 
+  laser_dataset_train = LaserDataset('../../laser_images/cartesian/', bdsl_train, transform=transform)
   laser_dataset_test = LaserDataset('../../laser_images/cartesian/', bdsl_test, transform=transform)
+  #laser_dataset_train = LaserDatasetSimTriplets('../../laser_images/cartesian/',bdsl_train,transform=transform)
+  #laser_dataset_test = LaserDatasetSimTriplets('../../laser_images/cartesian/', bdsl_test, transform=transform)
 
   print("Training dataset size: ")
   print(len(laser_dataset_train))

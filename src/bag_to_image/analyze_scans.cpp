@@ -607,6 +607,15 @@ void getSideBySide() {
   side_by_side_viewing_ = true;
 }
 
+//////// FLIRT + FALKO ////////
+void getFLIRTFeatures() {
+
+}
+
+void getFALKOFeatures() {
+
+}
+
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     std::cout << "Usage: ./AnalyzeScans <mode> (optional-->) <bag file 1> ... <bag file n>" << std::endl;
@@ -638,7 +647,7 @@ int main(int argc, char* argv[]) {
   else if (mode == 2) { // View Embedding Interpolation
     //getDownsampledScansFromTxt("src/python/recreations.txt");
     getRecreatedScansFromTxt("src/python/recreations.txt");
-    normalized_ = true;
+    //normalized_ = true;
   }
   else {
     std::cout << "undefined mode" << std::endl;

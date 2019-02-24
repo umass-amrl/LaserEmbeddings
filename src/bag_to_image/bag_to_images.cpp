@@ -743,10 +743,6 @@ void insertSyntheticTemplate(const float FOV,
 }
 
 
-//TODO: concerns
-//  learn all-black?
-//  can ignore max range scans?
-
 //TODO: procedures for adding noise
 void convertScansToHighResImages(const vector<vector<float>>& all_scans, const int FOV, const float max_laser_range) {
   std::stringstream ss;

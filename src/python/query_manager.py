@@ -36,6 +36,26 @@ from torch.autograd import Variable
 from torchvision import datasets, transforms
 from sklearn.decomposition import PCA, KernelPCA
 
+############################## QUERY EXPERIMENTS ##############################
+
+# WHOLE SCANS: noise-wise ordering is correct, noise/non-noise order is more or less preserved
+# 1. VAE + SIMNET
+# 2. FLIRT + SIMNET / RANSAC (whichever will work)
+# 3. FALKO + SIMNET / RANSAC (whichever will work)
+# 3b. FLIRT + FALKO + SIMNET
+# 4. NAIVENET
+# 5. RAW INPUT
+
+# SUBSET SCANS: Get recall, precision for synthetically added subsets
+# 1. VAE + SIMNET
+# 2. VAE + SET REMAINDER TO 0
+# 3. VAE + MONTE CARLO SUBSPACE
+# 4. NAIVENET
+# 5. RAW INPUT
+# 6. FLIRT / FALKO (if they'll work)
+
+
+
 ############################## LOADING STUFF ##############################
 
 #TODO: might not need

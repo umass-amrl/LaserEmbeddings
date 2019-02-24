@@ -21,7 +21,7 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 import convert_png_to_numpy as cptn
-from network_definitions import VAE, TripletNet
+from network_definitions import VAE, SimNet, SimNetTrainer
 from sklearn import manifold
 from torch.autograd import Variable
 from mpl_toolkits.mplot3d import Axes3D
@@ -221,35 +221,29 @@ def writeDownsampledInputs(test_set):
 def generateEmbeddings(test_set, model):
   model.eval()
   test_set_len = len(test_set)
-  dn, dr = test_set.getSpecificItem(0)
-  dn = dn.unsqueeze(0)
-  dr = dr.unsqueeze(0)
-  with torch.set_grad_enabled(False):
-    dn = Variable(dn)
-    dr = Variable(dr)
-  dn = dn.cuda()
-  dr = dr.cuda()
-  _, _, emb_0x, _, _, _, _, _, _, _, _, _, _ = model(dn, dn, dn, dr, dr, dr)
-  emb_0x = emb_0x.cpu()
-  np_emb_x = emb_0x.data.numpy()
-  embeddings = np.empty([test_set_len, np_emb_x.size])
+  input_scan, _ = test_set[0]
+  input_scan = input_scan.unsqueeze(0)
+  with torch.no_grad():
+    input_scan = Variable(input_scan)
+  input_scan = input_scan.cuda()
+  _, emb, _ = model(input_scan)
+  emb = emb.cpu()
+  np_emb = emb.data.numpy()
+  embeddings = np.empty([test_set_len, np_emb.size])
   for idx in range(test_set_len):
     if idx % 100 == 0:
       print(idx)
 
-    dn, dr = test_set.getSpecificItem(idx)
-    dn = dn.unsqueeze(0)
-    dr = dr.unsqueeze(0)
-    with torch.set_grad_enabled(False):
-      dn = Variable(dn)
-      dr = Variable(dr)
-    dn = dn.cuda()
-    dr = dr.cuda()
-    _, _, emb_0x, _, _, _, _, _, _, _, _, _, _ = model(dn, dn, dn, dr, dr, dr)
+    input_scan, _ = test_set[idx]
+    input_scan = input_scan.unsqueeze(0)
+    with torch.no_grad():
+      input_scan = Variable(input_scan)
+    input_scan = input_scan.cuda()
+    _, emb, _ = model(input_scan)
 
-    emb_0x = emb_0x.cpu()
-    np_emb_x = emb_0x.data.numpy()
-    embeddings[idx, :] = np_emb_x
+    emb = emb.cpu()
+    np_emb = emb.data.numpy()
+    embeddings[idx, :] = np_emb
 
   return embeddings
 
@@ -260,34 +254,27 @@ def generateInterpolatedEmbeddings(test_set, model):
   real_scan_interval = 200
   interpolation_density = 10
   num_embeddings = (test_set_len / real_scan_interval) * interpolation_density + 1
-  dn, dr = test_set.getSpecificItem(0)
-  dn = dn.unsqueeze(0)
-  dr = dr.unsqueeze(0)
-  with torch.set_grad_enabled(False):
-    dn = Variable(dn)
-    dr = Variable(dr)
-  dn = dn.cuda()
-  dr = dr.cuda()
-  _, _, emb_0x, _, _, _, _, _, _, _, _, _, _ = model(dn, dn, dn, dr, dr, dr)
-  emb_0x = emb_0x.cpu()
-  np_emb_x = emb_0x.data.numpy()
-  interpolated = np.empty([num_embeddings, np_emb_x.size])
+  input_scan, _ = test_set[0]
+  input_scan = input_scan.unsqueeze(0)
+  with torch.no_grad():
+    input_scan = Variable(input_scan)
+  input_scan = input_scan.cuda()
+  _, emb, _ = model(input_scan)
+  emb = emb.cpu()
+  np_emb = emb.data.numpy()
+  interpolated_embeddings = np.empty([num_embeddings, np_emb.size])
   real_scans = []
   for idx in range(0, test_set_len, real_scan_interval):
 
-    dn, dr = test_set.getSpecificItem(idx)
-    dn = dn.unsqueeze(0)
-    dr = dr.unsqueeze(0)
-    with torch.set_grad_enabled(False):
-      dn = Variable(dn)
-      dr = Variable(dr)
-    dn = dn.cuda()
-    dr = dr.cuda()
-    _, _, emb_0x, _, _, _, _, _, _, _, _, _, _ = model(dn, dn, dn, dr, dr, dr)
-
-    emb_0x = emb_0x.cpu()
-    np_emb_x = emb_0x.data.numpy()
-    real_scans.append(np_emb_x)
+    input_scan, _ = test_set[idx]
+    input_scan = input_scan.unsqueeze(0)
+    with torch.no_grad():
+      input_scan = Variable(input_scan)
+    input_scan = input_scan.cuda()
+    _, emb, _ = model(input_scan)
+    emb = emb.cpu()
+    np_emb = emb.data.numpy()
+    real_scans.append(np_emb)
 
   row = 0
   for idx in range(len(real_scans)-1):
@@ -301,6 +288,7 @@ def generateInterpolatedEmbeddings(test_set, model):
 
   interpolated_embeddings[row, :] = real_scans[-1]
 
+
   return interpolated_embeddings
 
 def generateScanRecreationsFromData(test_set, model):
@@ -308,67 +296,50 @@ def generateScanRecreationsFromData(test_set, model):
   model.eval()
   test_set_len = len(test_set)
 
-  dn, dr = test_set.getSpecificItem(0)
-  dn = dn.unsqueeze(0)
-  dr = dr.unsqueeze(0)
-  with torch.set_grad_enabled(False):
-    dn = Variable(dn)
-    dr = Variable(dr)
-  dn = dn.cuda()
-  dr = dr.cuda()
-  #_, _, _, rec_x, _, _, _, _, _, _, _, _, _ = model(dn, dn, dn, dr, dr, dr)
-  #_, _, _, rec_x, _, _, _, _, _, _, _, _, _ = model(dn, dn, dn, dr, dr, dr, 0)
-  rec_x, _, _, _, _, _, _, _, _, _, _, _, _ = model(dn, dn, dn, dr, dr, dr, 0)
-  rec_x = rec_x.cpu()
-  rec_x = rec_x.data.numpy()
-  print(rec_x.shape)
-  rec_x = rec_x.squeeze(0)
-  print(rec_x.shape)
-  rec_x = rec_x.squeeze(0)
-  print(rec_x.shape)
-  print(type(rec_x))
-  #rec_x = rec_x.view(-1, 512 * 512)
-  #rec_x = np.reshape(rec_x, (1, 512 * 512))
-  rec_x = np.reshape(rec_x, (1, 256 * 256))
-  print(rec_x.shape)
-  recreations = np.empty([test_set_len, rec_x.size])
+  input_scan, _ = test_set[0]
+  input_scan = input_scan.unsqueeze(0)
+  with torch.no_grad():
+    input_scan = Variable(input_scan)
+  input_scan = input_scan.cuda()
+  rec, _, _ = model(input_scan)
+  rec = rec.cpu()
+  rec = rec.data.numpy()
+  rec = rec.squeeze(0)
+  rec = rec.squeeze(0)
+  rec = np.reshape(rec, (1, 256 * 256))
+  recreations = np.empty([test_set_len, rec.size])
   for idx in range(test_set_len):
     if idx % 100 == 0:
       print(idx)
 
-    dn, dr = test_set.getSpecificItem(idx)
-    dn = dn.unsqueeze(0)
-    dr = dr.unsqueeze(0)
-    with torch.set_grad_enabled(False):
-      dn = Variable(dn)
-      dr = Variable(dr)
-    dn = dn.cuda()
-    dr = dr.cuda()
+    input_scan, _ = test_set[idx]
+    input_scan = input_scan.unsqueeze(0)
+    with torch.no_grad():
+      input_scan = Variable(input_scan)
+    input_scan = input_scan.cuda()
 
-    # _, _, _, rec_x, _, _, _, _, _, _, _, _, _ = model(dn, dn, dn, dr, dr, dr)
-    #_, _, _, rec_x, _, _, _, _, _, _, _, _, _ = model(dn, dn, dn, dr, dr, dr, 0)
-    rec_x, _, _, _, _, _, _, _, _, _, _, _, _ = model(dn, dn, dn, dr, dr, dr, 0)
+    rec, _, _ = model(input_scan)
 
-    rec_x = rec_x.cpu()
-    np_rec_x = rec_x.data.numpy()
-    np_rec_x = np_rec_x.squeeze(0)
-    np_rec_x = np_rec_x.squeeze(0)
+    rec = rec.cpu()
+    np_rec = rec.data.numpy()
+    np_rec = np_rec.squeeze(0)
+    np_rec = np_rec.squeeze(0)
 
-    np_dn_x = dn.cpu().data.numpy()
-    np_dn_x = np_dn_x.squeeze(0)
-    np_dn_x = np_dn_x.squeeze(0)
+    np_in = input_scan.cpu().data.numpy()
+    np_in = np_in.squeeze(0)
+    np_in = np_in.squeeze(0)
 
-    np_rec_x[np_rec_x > -0.8] = 255
-    np_rec_x[np_rec_x < -0.8] = 0
+    np_rec[np_rec > 0.0] = 255
+    np_rec[np_rec < 0.0] = 0
 
     if idx % 100 == 0:
       ofname = "sample_results/orig_"+str(idx+1)+".png"
       rfname = "sample_results/rec_"+str(idx+1)+".png"
-      scipy.misc.imsave(rfname, np_rec_x)
-      scipy.misc.imsave(ofname, np_dn_x)
+      scipy.misc.imsave(rfname, np_rec)
+      scipy.misc.imsave(ofname, np_in)
 
-    np_rec_x = np.reshape(np_rec_x, (1, 256 * 256))
-    recreations[idx, :] = np_rec_x
+    np_rec = np.reshape(np_rec, (1, 256 * 256))
+    recreations[idx, :] = np_rec
 
   return recreations
 
@@ -376,15 +347,22 @@ def generateScanRecreationsFromEmbeddings(embeddings, model):
   model = model.cuda()
   model.eval()
 
-  recreations = np.empty([embeddings[:, 0].size, 256])
+  recreations = np.empty([embeddings[:, 0].size, 256 * 256])
   for idx in range(len(embeddings)):
     emb = embeddings[idx, :]
+    emb = emb.astype('float32')
     emb = Variable(torch.from_numpy(emb))
     emb = emb.cuda()
-    rec_x = model(emb)
-    rec_x = rec_x.cpu()
-    np_rec_x = rec_x.data.numpy()
-    recreations[idx, :] = np_rec_x
+    rec = model.decodeSingle(emb)
+    rec = rec.cpu()
+    np_rec = rec.data.numpy()
+    np_rec[np_rec > 0.0] = 255
+    np_rec[np_rec < 0.0] = 0
+    np_rec = np.reshape(np_rec, (1, 256 * 256))
+    recreations[idx, :] = np_rec
+    #np_rec = np.reshape(np_rec, (256, 256))
+    #rfname = "sample_results/rec_"+str(idx+1)+".png"
+    #scipy.misc.imsave(rfname, np_rec)
 
   return recreations
 
@@ -393,8 +371,9 @@ def generateScanRecreationsFromEmbeddings(embeddings, model):
 def loadNetwork(model):
   model = model.cuda()
 
-  #checkpoint_to_load = 'model_checkpoints/current/most_recent.pth.tar'
-  checkpoint_to_load = 'model_checkpoints/current/checkpoint306.pth.tar'
+  #checkpoint_to_load = 'model_checkpoints/archive/Cartesian/VAE_10k/checkpoint_test_2.pth.tar'
+  checkpoint_to_load = 'model_checkpoints/archive/Cartesian/VAE_10k/checkpoint_train_83.pth.tar'
+  #checkpoint_to_load = 'model_checkpoints/archive/Cartesian/VAE_repeat_init/checkpoint_train_262.pth.tar'
 
   if os.path.isfile(checkpoint_to_load):
     print("=> loading checkpoint '{}'".format(checkpoint_to_load))
@@ -405,7 +384,7 @@ def loadNetwork(model):
   else:
     print("=> no checkpoint found at '{}'".format(checkpoint_to_load))
 
-  n_parameters = sum([p.data.nelement() for p in tnet.parameters()])
+  n_parameters = sum([p.data.nelement() for p in model.parameters()])
   print('  + Number of params: {}'.format(n_parameters))
 
   return model
@@ -436,12 +415,11 @@ def main():
 
   #TODO: pass in arg for which network to load
   model = VAE()
-  model = SimNet()
+  #model = SimNet()
   model = loadNetwork(model)
 
   #TODO: pass in args for which dataset to create
-  test_set = cptn.SpecialTestSet()
-
+  _, test_set = cptn.CurateTrainTest()
   if mode == 0: #For side by side playback of a deployment
     print("Running embedded view experiment")
     print("Writing downsampled inputs")
@@ -452,10 +430,9 @@ def main():
     writeRecreationsToText(recreations)
 
   elif mode == 1: #For demonstrating continuity of embedding space
-    #TODO: load the NetnetDecoder as model
-    print("Running dimension-wise variance experiment")
+    print("Running embedding interpolation experiment")
     print("Generating embeddings")
-    embeddings = generateEmbeddings(test_set, model)
+    embeddings = generateInterpolatedEmbeddings(test_set, model)
     print("Generating recreations")
     recreations = generateScanRecreationsFromEmbeddings(embeddings, model)
     print("Writing recreations to text")
@@ -488,18 +465,18 @@ def main():
     print("Running trajectory analysis experiment")
     print("Generating embeddings")
     embeddings = generateEmbeddings(test_set, model)
-    print("Generating recreations")
-    recreations = generateScanRecreationsFromData(test_set, model)
+    #print("Generating recreations")
+    #recreations = generateScanRecreationsFromData(test_set, model)
     print("Loading raw scans")
     raw_scans = loadScansFromBag(bag_file)
 
     print("Computing data trajectories")
     embedding_trajectories = generateDataTrajectories(embeddings)
-    recreation_trajectories = generateDataTrajectories(recreations)
+    #recreation_trajectories = generateDataTrajectories(recreations)
     raw_trajectories = generateDataTrajectories(raw_scans)
 
     vizDataTrajectories(embedding_trajectories)
-    vizDataTrajectories(recreation_trajectories)
+    #vizDataTrajectories(recreation_trajectories)
     vizDataTrajectories(raw_trajectories)
 
   elif mode == 4:

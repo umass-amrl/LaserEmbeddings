@@ -36,8 +36,6 @@ from torch.autograd import Variable
 from torchvision import datasets, transforms
 from sklearn.decomposition import PCA, KernelPCA
 
-
-
 #NOTE: EXPERIMENTAL PARAMS:
 
 # input shape / type (1d, 2d flat, 2d perdiodic rotation)
@@ -64,17 +62,8 @@ from sklearn.decomposition import PCA, KernelPCA
     # regular (time-based)
     # noised
     # objectified
+
 # loss function (L-2 norm, cosine distance, etc.)
-
-# 
-
-#TODO: improve training data selection
-
-#TODO: LIST OF EXPERIMENTS
-
-#embeddings_database = []
-
-#TODO: seperate out all NN class stuff to a different file
 
 ############################## VARIATIONAL AUTOENCODER ##############################
 
@@ -134,6 +123,16 @@ class VAE(nn.Module):
     out = self.ht(self.conv5(out))
     return out
 
+  def decodeSingle(self, z):
+    h3 = self.relu(self.fc3(z))
+    out = self.relu(self.fc4(h3))
+    out = out.view(1, 8, 64, 64)
+    out = self.relu(self.deconv1(out))
+    out = self.relu(self.deconv2(out))
+    out = self.relu(self.deconv3(out))
+    out = self.ht(self.conv5(out))
+    return out
+
   def forward(self, x):
     mu, logvar = self.encode(x)
     z = self.reparameterize(mu, logvar)
@@ -160,7 +159,10 @@ class SimNet(nn.Module):
     self.sigmoid = nn.Sigmoid()
 
   def forward(self, db_item_emb, query_emb):
-     x = torch.cat(db_item_emb, query_emb)
+     #print(db_item_emb.shape)
+     #print(query_emb.shape)
+     x = torch.cat((db_item_emb, query_emb), 1)
+     #print(x.shape)
      x = self.relu(self.fc1(x))
      x = self.relu(self.fc2(x))
      sim_score = self.sigmoid(self.fc3(x))
@@ -176,3 +178,36 @@ class SimNetTrainer(nn.Module):
     sim_score_B = self.simnet(DB_instance_B, query)
     return sim_score_A, sim_score_B
 
+############################## NAIVE NET ##############################
+
+class NaiveNet(nn.Module):
+  def __init__(self):
+    super(NaiveNet, self).__init__()
+
+    self.fc1 = nn.Linear(2 * 1081, 2048)
+    self.fc2 = nn.Linear(2048, 512)
+    self.fc3 = nn.Linear(512, 512)
+    self.fc4 = nn.Linear(512, 512)
+    self.fc5 = nn.Linear(512, 256)
+    self.fc6 = nn.Linear(256, 256)
+    self.fc7 = nn.Linear(256, 128)
+    self.fc8 = nn.Linear(128, 64)
+    self.fc9 = nn.Linear(64, 64)
+    self.fc10 = nn.Linear(64, 1)
+
+    self.relu = nn.ReLU()
+    self.sigmoid = nn.Sigmoid()
+
+  def forward(self, db_item_emb, query_emb):
+     x = torch.cat(db_item_emb, query_emb)
+     x = self.relu(self.fc1(x))
+     x = self.relu(self.fc2(x))
+     x = self.relu(self.fc3(x))
+     x = self.relu(self.fc4(x))
+     x = self.relu(self.fc5(x))
+     x = self.relu(self.fc6(x))
+     x = self.relu(self.fc7(x))
+     x = self.relu(self.fc8(x))
+     x = self.relu(self.fc9(x))
+     sim_score = self.sigmoid(self.fc10(x))
+     return sim_score
