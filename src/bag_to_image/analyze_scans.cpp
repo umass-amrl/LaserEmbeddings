@@ -17,6 +17,7 @@
 #include "gui_msgs/LidarDisplayMsg.h"
 #include "gui_msgs/ScanFeatureMsg.h"
 #include "gui_msgs/QueryImageMsg.h"
+#include "gui_msgs/QueryResultsMsg.h"
 #include "../perception_tools/perception_2d.h"
 #include "shared_structs.h"
 
@@ -31,12 +32,18 @@ bool feature_selected_ = false;
 
 ros::Subscriber mouse_subscriber_;
 ros::Subscriber keyboard_subscriber_;
+ros::Subscriber query_results_subscriber_;
 ros::Publisher display_publisher_;
 ros::Publisher selection_publisher_;
 
 gui_msgs::LidarDisplayMsg display_message_;
 //gui_msgs::ScanFeatureMsg selection_message_;
 gui_msgs::QueryImageMsg selection_message_;
+
+
+bool viewing_results_ = false;
+vector<vector<float>> query_results_;
+vector<vector<float>> database_scans_;
 
 vector<string> bag_names_;
 string bag_name_;
@@ -45,17 +52,17 @@ vector<vector<float>> all_scans_sidekick_1;
 vector<vector<float>> all_scans_sidekick_2;
 
 int current_view_ = 1;
+int bookmark_ = 1;
 vector<int> id_in_progress_;
-bool normalized_ = false;
 bool side_by_side_viewing_ = false;
 
 float start_angle_ = -135.0; // degrees
 float field_of_view_ = 270.0; // degrees
-float min_range = 0.0;    // meters
-float max_range = 10.0;   // meters
-float angular_res = 0.25; // degrees
+float min_range_ = 0.0;    // meters
+float max_range_ = 10.0;   // meters
+float angular_res_ = 0.25; // degrees
 
-void getScansFromBag() {
+void getScansFromBag(bool loading_database) {
   rosbag::Bag bag;
   printf("Opening bag file %s...", bag_name_.c_str()); fflush(stdout);
   bag.open(bag_name_, rosbag::bagmode::Read);
@@ -75,11 +82,16 @@ void getScansFromBag() {
       vector<float> single_scan;
       for (unsigned int i = 0; i < laser_message->ranges.size(); ++i) {
         float range = laser_message->ranges[i];
-        range = std::max(range, min_range);
-        range = std::min(range, max_range);
+        range = std::max(range, min_range_);
+        range = std::min(range, max_range_);
         single_scan.push_back(range);
       }
-      all_scans_.push_back(single_scan);
+      if (loading_database) {
+        database_scans_.push_back(single_scan);
+      }
+      else {
+        all_scans_.push_back(single_scan);
+      }
     }
   }
   printf(" Done.\n"); fflush(stdout);
@@ -106,12 +118,10 @@ void pubScanFeature() {
 }
 */
 
-void calculatePoints(const float start_angle, const float angular_res,
-                     const Eigen::Vector2f origin, const vector<float> scan) {
+void calculatePoints(const Eigen::Vector2f origin, const vector<float> scan) {
   for (size_t i = 0; i < scan.size(); ++i) {
-    //if (true) {
-    if (scan[i] < 0.98*max_range) {
-      float angle = (start_angle + angular_res * i) * (M_PI / 180.0);
+    if (scan[i] < 0.98 * max_range_) {
+      float angle = (start_angle_ + angular_res_ * i) * (M_PI / 180.0);
       Eigen::Rotation2Df R(angle);
       Eigen::Vector2f x(scan[i], 0.0);
       Eigen::Vector2f p = R * x + origin;
@@ -123,39 +133,29 @@ void calculatePoints(const float start_angle, const float angular_res,
 
 void pubScan() {
   //TODO: figure out why there is lag / weird behavior in the scan display
-  //TODO: harden logic / parameter setting for whether or not recreated scans are normalized
   std::cout << "scan number: " << current_view_ << std::endl;
   display_message_.points_x.clear();
   display_message_.points_y.clear();
-  if (!side_by_side_viewing_) {
-    vector<float> scan = all_scans_[current_view_ - 1];
-    Eigen::Vector2f origin(0.0, 0.0);
-    float start_angle = -135.0;         // default value for UST-10LX
-    float angular_res = 270.0 / 1024.0; // default value for UST-10LX?
-    if (normalized_) {
-      angular_res = 360.0 / float(scan.size());
-    }
-    else {
-      angular_res = 270.0 / float(scan.size());
-    }
-    calculatePoints(start_angle, angular_res, origin, scan);
-  }
-  else {
+  if (side_by_side_viewing_) {
     vector<float> scan1 = all_scans_[current_view_ - 1];
     vector<float> scan2 = all_scans_sidekick_1[current_view_ - 1];
     //vector<float> scan3 = all_scans_sidekick_2[current_view_ - 1];
     Eigen::Vector2f origin1(-12.0, 0.0);
     Eigen::Vector2f origin2(12.0, 0.0);
     //Eigen::Vector2f origin3(0.0, 12.0);
-    float start_angle1 = -135.0;
-    float start_angle2 = -135.0;
-    //float start_angle3 = -180.0;
-    float angular_res1 = 270.0 / float(scan1.size());
-    float angular_res2 = 270.0 / float(scan2.size());
-    //float angular_res3 = 360.0 / float(scan3.size());
-    calculatePoints(start_angle1, angular_res1, origin1, scan1);
-    calculatePoints(start_angle2, angular_res2, origin2, scan2);
-    //calculatePoints(start_angle3, angular_res3, origin3, scan3);
+    calculatePoints(origin1, scan1);
+    calculatePoints(origin2, scan2);
+    //calculatePoints(origin3, scan3);
+  }
+  else if (viewing_results_) {
+    vector<float> scan = query_results_[current_view_ - 1];
+    Eigen::Vector2f origin(0.0, 0.0);
+    calculatePoints(origin, scan);
+  }
+  else {
+    vector<float> scan = all_scans_[current_view_ - 1];
+    Eigen::Vector2f origin(0.0, 0.0);
+    calculatePoints(origin, scan);
   }
 
   display_publisher_.publish(display_message_);
@@ -316,7 +316,16 @@ void MouseClickCallback(const gui_msgs::GuiMouseClickEvent& msg) {
   }
 }
 
-
+void QueryResultsCallback(const gui_msgs::QueryResultsMsg& msg) {
+  std::cout << "got results" << std::endl;
+  query_results_.clear();
+  for (size_t i = 0; i < msg.top_k_scan_ids.size(); ++i) {
+    query_results_.push_back(database_scans_[msg.top_k_scan_ids[i]]);
+  }
+  viewing_results_ = true;
+  bookmark_ = current_view_;
+  current_view_ = 1;
+}
 
 void publishQuery(const cimg_library::CImg<uint8_t> scan_img) {
 
@@ -325,10 +334,13 @@ void publishQuery(const cimg_library::CImg<uint8_t> scan_img) {
   selection_message_.timestamp = ros::Time::now().toSec();
   selection_message_.width = width;
   selection_message_.height = height;
-  vector<uint8_t> row_major_bitmap;
+  vector<unsigned int> row_major_bitmap;
   for (size_t x = 0; x < width; ++x) {
     for (size_t y = 0; y < height; ++y) {
-      row_major_bitmap.push_back(scan_img(x, y));
+      //row_major_bitmap.push_back((unsigned int)scan_img(x, y));
+      //TODO: change name to col major because that's apparently how numpy reads
+      //this in on the other end
+      row_major_bitmap.push_back((unsigned int)scan_img(y, x));
     }
   }
   selection_message_.row_major_bitmap = row_major_bitmap;
@@ -349,13 +361,13 @@ cimg_library::CImg<uint8_t> convertScanFeatureToImage() {
       scan_image(x, y) = 0;
     }
   }
-  int num_obs = int(field_of_view_ / angular_res) + 1;
-  size_t feature_start_index = (scan_feature_.start_angle - start_angle_) / angular_res;
+  int num_obs = int(field_of_view_ / angular_res_) + 1;
+  size_t feature_start_index = (scan_feature_.start_angle - start_angle_) / angular_res_;
   size_t feature_end_index = feature_start_index + scan_feature_.ranges.size();
   for (size_t i = 0; i < size_t(num_obs); ++i) {
     if (i >= feature_start_index && i <= feature_end_index) {
-      if (scan_feature_.ranges[i - feature_start_index] < 0.98 * max_range) {
-        float current_angle = (start_angle_ + i * angular_res) * (M_PI/180.0);
+      if (scan_feature_.ranges[i - feature_start_index] < 0.98 * max_range_) {
+        float current_angle = (start_angle_ + i * angular_res_) * (M_PI/180.0);
         Eigen::Vector2f ray_dir(cos(current_angle), sin(current_angle));
         Eigen::Vector2f obs_loc = scan_feature_.ranges[i - feature_start_index] * ray_dir;
         scan_image(int(obs_loc.x() / pixel_res) + origin_x, int(obs_loc.y() / pixel_res) + origin_y) = 255;
@@ -432,11 +444,13 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
     else if (msg.keycode == 0x51) { // key code 81 for 'q' for query
       std::cout << "submitting query" << std::endl;
       cimg_library::CImg<uint8_t> scan_img = convertScanFeatureToImage();
+      string scan_image_file = "TESTING222.png";
+      scan_img.save_png(scan_image_file.c_str());
       publishQuery(scan_img);
       feature_selected_ = false;
     }
   }
-  std::cout << msg.keycode << std::endl;
+  //std::cout << msg.keycode << std::endl;
 
   if (msg.keycode == 0x57) { // key code 87, 'w' for whole
     std::cout << "whole scan" << std::endl;
@@ -447,6 +461,14 @@ void KeyboardEventCallback(const gui_msgs::GuiKeyboardEvent& msg) {
   }
 
   ////////// saving and labeling features //////////
+
+  if (msg.keycode == 0x42) { // key code 66, 'b' for back
+    std::cout << "back to query entry" << std::endl;
+    viewing_results_ = false;
+    int tmp = bookmark_;
+    current_view_ = bookmark_;
+    bookmark_ = tmp;
+  }
 }
 
 void getRawScansFromTxt() {
@@ -612,7 +634,7 @@ void getRecreatedScansFromTxt(std::string filename) {
     vector<float> single_scan;
     float current_angle = start_angle_;
     while (current_angle <= (start_angle_ + field_of_view_)) {
-      Vector2f target_loc = max_range * Vector2f(cos(current_angle * (M_PI/180.0)), sin(current_angle * (M_PI/180.0)));
+      Vector2f target_loc = max_range_ * Vector2f(cos(current_angle * (M_PI/180.0)), sin(current_angle * (M_PI/180.0)));
       int target_x = (target_loc(0) / pixel_res) + origin_x;
       int target_y = (target_loc(1) / pixel_res) + origin_y;
       std::pair<vector<int>, vector<int>> points_of_interest = BresenhamLineDraw(origin_x, origin_y, target_x, target_y);
@@ -622,7 +644,7 @@ void getRecreatedScansFromTxt(std::string filename) {
       maxin = fmax(maxin, depth);
       minin = fmin(minin, depth);
       single_scan.push_back(depth);
-      current_angle += angular_res;
+      current_angle += angular_res_;
     }
     if (casting_scan_number % 100 == 0) {
       string scan_image_file = "test_" + std::to_string(casting_scan_number) + ".png";
@@ -651,7 +673,7 @@ void getDownsampledScansFromTxt(std::string filename) {
       minin = fmin(minin, value);
       // Assumes -1.0 <= 'value' <= 1.0
       value = (value * 0.5) + 0.5;
-      single_scan.push_back(max_range * (1.0 - value));
+      single_scan.push_back(max_range_ * (1.0 - value));
     }
     all_scans_.push_back(single_scan);
   }
@@ -667,7 +689,8 @@ void getSideBySide() {
   //getDownsampledScansFromTxt("src/python/medianfiltered.txt");
   //all_scans_sidekick_2 = all_scans_;
   //all_scans_.clear();
-  getScansFromBag();
+  bool loading_database = false;
+  getScansFromBag(loading_database);
   side_by_side_viewing_ = true;
 }
 
@@ -689,14 +712,18 @@ int main(int argc, char* argv[]) {
   int mode = atoi(argv[1]);
 
   if (mode == 0) { // Regular query answering mode
-    if (argc < 3) {
-      std::cout << "need at least 1 bag_name" << std::endl;
+    if (argc < 4) {
+      std::cout << "need at least 1 bag to explore and at least one database bag. (can be the same)" << std::endl;
       return 1;
     }
-    for (int i = 2; i < argc; ++i) {
-      bag_names_.push_back(argv[i]);
+    bool loading_database = false;
+    bag_name_ = argv[2];
+    getScansFromBag(loading_database);
+    loading_database = true;
+    for (int i = 3; i < argc; ++i) {
+      //bag_names_.push_back(argv[i]);
       bag_name_ = argv[i];
-      getScansFromBag();
+      getScansFromBag(loading_database);
       //TODO: add bookkeepping for properly indexing / reporting scans after loading multiple bags
     }
   }
@@ -719,16 +746,6 @@ int main(int argc, char* argv[]) {
     //getRawScansFromTxt();
   }
 
-
-  //TODO: set up ability to immediately view query results
-  // need subscriber to whatever query manager publishes
-  // need to load in the matching database
-  // need to map scan indices from msg to db
-  // need to form new all_scans
-  // need swapping mechanism to go from potential queries to results
-  // need command line structure to load both datasets (db and queries (may be same / overlapping))
-
-
   std::cout << "loaded" << std::endl;
 
   ros::init(argc, argv, "scanalyzer");
@@ -740,6 +757,7 @@ int main(int argc, char* argv[]) {
   //selection_publisher_ = nh.advertise<std_msgs::String>("QueryFilename", 1, true);
   //selection_publisher_ = nh.advertise<gui_msgs::ScanFeatureMsg>("ScanFeature", 1, true);
   selection_publisher_ = nh.advertise<gui_msgs::QueryImageMsg>("LaserQueryImage", 1, true);
+  query_results_subscriber_ = nh.subscribe("QueryResults", 1, QueryResultsCallback);
 
   ros::spin();
 

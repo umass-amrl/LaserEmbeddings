@@ -1890,64 +1890,6 @@ def CurateSyntheticSets():
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class LaserDatasetSimTriplets(Dataset):
   """Laser dataset."""
 
@@ -2291,7 +2233,7 @@ class LaserDataset(Dataset):
     #scipy.misc.imsave(ofname, input_scan)
     #rfname = "rec.png"
     #scipy.misc.imsave(rfname, recreation_target_scan)
-
+#    print(input_scan.dtype)
     input_scan = self.transformForTorch(input_scan)
     recreation_target_scan = self.transformForTorch(recreation_target_scan)
 

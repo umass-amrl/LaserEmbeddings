@@ -351,7 +351,8 @@ def generateScanRecreationsFromEmbeddings(embeddings, model):
   for idx in range(len(embeddings)):
     emb = embeddings[idx, :]
     emb = emb.astype('float32')
-    emb = Variable(torch.from_numpy(emb))
+    with torch.no_grad():
+      emb = Variable(torch.from_numpy(emb))
     emb = emb.cuda()
     rec = model.decodeSingle(emb)
     rec = rec.cpu()
